@@ -6,12 +6,27 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct UserProfileView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var allItems: [TransactionItem]
+    
     var body: some View {
         NavigationView {
-            Text("User profile settings go here")
-                .navigationTitle("Profile")
+            VStack(spacing: 20) {
+                Text("User profile settings go here")
+                
+                Button("Clear all data") {
+                    for item in allItems {
+                        modelContext.delete(item)
+                    }
+                    try? modelContext.save()
+                }
+                .foregroundColor(.red)
+            }
+            .padding()
+            .navigationTitle("Profile")
         }
     }
 }

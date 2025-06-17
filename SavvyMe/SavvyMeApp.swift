@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct SavvyMeApp: App {
@@ -23,8 +24,10 @@ struct SavvyMeApp: App {
                     .preferredColorScheme(.light) // 👈 forces light mode
             }
         }
+        .modelContainer(for: TransactionItem.self) // 👈 Add this line
     }
 }
+
 
 struct ColorTheme {
     static let primary = Color("MainColor")

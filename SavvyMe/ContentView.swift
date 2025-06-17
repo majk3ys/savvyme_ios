@@ -19,18 +19,12 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            SpendingIncomeTabsView(
-                values: $values,
-                frequencies: $frequencies,
-                overallFrequency: $overallFrequency
-            )
+            SpendingIncomeTabsView()
                 .tabItem {
                     Label("My finances", systemImage: "square.and.pencil")
                 }
 
             DashboardView(
-                values: $values,
-                frequencies: $frequencies,
                 overallFrequency: $overallFrequency
             )
                 .tabItem {
