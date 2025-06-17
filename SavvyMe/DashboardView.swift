@@ -1075,17 +1075,3 @@ struct CircularProgressView: View {
     }
 }
 
-extension Color {
-    static let categoryColors: [String: Color] = [
-        "Home": .blue,                          // Calm, solid, foundational
-        "Daily living": .green,                 // Natural, routine, groceries & essentials
-        "Transport": .orange,                   // Energetic, movement, fuel/travel
-        "Entertainment & personal": .purple     // Fun, leisure, personal care
-    ]
-
-    static func shade(for category: String, index: Int, total: Int) -> Color {
-        guard let base = categoryColors[category] else { return .gray }
-        let fraction = Double(index) / Double(max(total - 1, 1))
-        return base.opacity(0.5 + 0.5 * fraction) // Shades from 50% to 100%
-    }
-}

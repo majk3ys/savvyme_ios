@@ -19,7 +19,9 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            SpendingIncomeTabsView()
+            SpendingInputView(
+                overallFrequency: $overallFrequency
+            )
                 .tabItem {
                     Label("My finances", systemImage: "square.and.pencil")
                 }
@@ -42,5 +44,21 @@ struct MainTabView: View {
                 }
         }
         .accentColor(ColorTheme.primary)
+    }
+}
+
+extension Color {
+    static let categoryColors: [String: Color] = [
+        "Home": .blue,
+        "Daily living": .green,
+        "Transport": .orange,
+        "Entertainment & personal": .purple,
+        "Income": .yellow
+    ]
+
+    static func shade(for category: String, index: Int, total: Int) -> Color {
+        guard let base = categoryColors[category] else { return .gray }
+        let fraction = Double(index) / Double(max(total - 1, 1))
+        return base.opacity(0.5 + 0.5 * fraction) // Shades from 50% to 100%
     }
 }
