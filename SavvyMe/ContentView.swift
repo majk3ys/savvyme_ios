@@ -8,10 +8,7 @@
 import SwiftUI
 
 struct MainTabView: View {
-    init() {
-        UITabBar.appearance().backgroundColor = UIColor(ColorTheme.nav)
-        UITabBar.appearance().unselectedItemTintColor = UIColor(ColorTheme.text)
-    }
+
 
     @State private var values: [String: String] = [:]
     @State private var frequencies: [String: String] = [:]
@@ -53,7 +50,7 @@ extension Color {
         "Daily living": .green,
         "Transport": .orange,
         "Entertainment & personal": .purple,
-        "Income": .yellow
+        "Income": .mint
     ]
 
     static func shade(for category: String, index: Int, total: Int) -> Color {

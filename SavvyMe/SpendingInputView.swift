@@ -7,7 +7,6 @@ struct SpendingInputView: View {
     @Binding var overallFrequency: String
     @State private var selectedCategory: String? = nil
     @State private var searchText = ""
-    @State private var expandedCategories: Set<String> = []
     @State private var selectedSegment = 0 // 0 for Spending, 1 for Income
     
     // Category structure matching your DashboardView
@@ -110,14 +109,12 @@ struct SpendingInputView: View {
                         if searchText.isEmpty {
                             // Category view
                             ForEach(currentCategoryOrder, id: \.self) { category in
-                                CategorySection(
+                                CategoryCard(
                                     category: category,
                                     subcategories: currentCategories[category] ?? [],
                                     displayNames: currentDisplayNames,
                                     allItems: allItems,
                                     overallFrequency: overallFrequency,
-                                    isExpanded: expandedCategories.contains(category),
-                                    onToggleExpansion: { toggleCategory(category) },
                                     onUpdateItem: updateItem,
                                     isIncome: selectedSegment == 1
                                 )
@@ -143,23 +140,30 @@ struct SpendingInputView: View {
             .onChange(of: selectedSegment) { _, _ in
                 // Clear search when switching segments
                 searchText = ""
-                expandedCategories.removeAll()
+            }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        hideKeyboard()
+                    }
+                }
             }
         }
     }
     
     // MARK: - Helper Functions
-    
-    private func toggleCategory(_ category: String) {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            if expandedCategories.contains(category) {
-                expandedCategories.remove(category)
-            } else {
-                expandedCategories.insert(category)
-            }
+    static func frequencyMultiplier(from freq: String) -> Double {
+        switch freq {
+        case "Weekly": return 52
+        case "Fortnightly": return 26
+        case "Monthly": return 12
+        case "Quarterly": return 4
+        case "Annual": return 1
+        default: return 1
         }
     }
-    
+
     private func updateItem(name: String, amount: Double, frequency: String) {
         let itemType = selectedSegment == 0 ? "spending" : "income"
         
@@ -207,19 +211,28 @@ private struct HeaderSection: View {
     
     var body: some View {
         HStack {
-            Text("Default frequency:")
+            Text("Select frequency:")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             
             Spacer()
             
-            Picker("Frequency", selection: $overallFrequency) {
+            Menu {
                 ForEach(["Weekly", "Fortnightly", "Monthly", "Quarterly", "Annual"], id: \.self) { freq in
-                    Text(freq).tag(freq)
+                    Button(action: {
+                        overallFrequency = freq
+                    }) {
+                        Text(freq)
+                            .font(.subheadline)
+                    }
+                }
+            } label: {
+                HStack {
+                    Text("\(overallFrequency)")
+                        .font(.subheadline)
+                    Image(systemName: "chevron.down")
                 }
             }
-            .pickerStyle(MenuPickerStyle())
-            .font(.subheadline)
         }
         .padding()
         .background(Color(.systemGray6))
@@ -234,22 +247,15 @@ private struct SearchBar: View {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
             
-            TextField("Search...", text: $searchText)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .toolbar {
-                    ToolbarItemGroup(placement: .keyboard) {
-                        Spacer()
-                        Button("Done") {
-                            hideKeyboard()
-                        }
-                    }
-                }
+            VStack {
+                TextField("Search...", text: $searchText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            }
             
             if !searchText.isEmpty {
                 Button("Clear") {
                     searchText = ""
                 }
-                .foregroundColor(.blue)
                 .font(.subheadline)
             }
         }
@@ -258,59 +264,173 @@ private struct SearchBar: View {
     }
 }
 
-private struct CategorySection: View {
+private struct CategoryCard: View {
     let category: String
     let subcategories: [String]
     let displayNames: [String: String]
     let allItems: [TransactionItem]
     let overallFrequency: String
-    let isExpanded: Bool
-    let onToggleExpansion: () -> Void
     let onUpdateItem: (String, Double, String) -> Void
     let isIncome: Bool
     
-    @State private var dragOffset: CGFloat = 0
-    @State private var isDragging = false
+    var body: some View {
+        NavigationLink(destination: CategoryDetailView(
+            category: category,
+            subcategories: subcategories,
+            displayNames: displayNames,
+            allItems: allItems,
+            overallFrequency: overallFrequency,
+            onUpdateItem: onUpdateItem,
+            isIncome: isIncome
+        )) {
+            VStack(spacing: 0) {
+                HStack {
+                    // Category color dot
+                    Circle()
+                        .fill(Color.categoryColors[category] ?? .gray)
+                        .frame(width: 16, height: 16)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(category)
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        let total = getCategoryTotal()
+                        if total > 0 {
+                            Text("$\(formattedNumber(total))")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("No \(isIncome ? "income" : "expenses") entered")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Show number of active items
+                    let activeCount = getActiveItemCount()
+                    if activeCount > 0 {
+                        Text("\(activeCount) active")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                    }
+                    
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                }
+                .padding()
+            }
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private func getCategoryTotal() -> Double {
+        return subcategories.reduce(0) { total, subcategory in
+            total + convertToOverallFrequency(for: subcategory)
+        }
+    }
+    
+    private func getCurrentValue(for name: String) -> Double {
+        return allItems.first(where: { $0.name == name })?.amount ?? 0
+    }
+    
+    private func getActiveItemCount() -> Int {
+        return subcategories.filter { getCurrentValue(for: $0) > 0 }.count
+    }
+    
+    private func formattedNumber(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+    }
+    
+    private func convertToOverallFrequency(for name: String) -> Double {
+        guard let item = allItems.first(where: { $0.name == name }) else { return 0 }
+        let base = item.amount
+        let fromMultiplier = SpendingInputView.frequencyMultiplier(from: item.frequency)
+        let toMultiplier = SpendingInputView.frequencyMultiplier(from: overallFrequency)
+        return base * fromMultiplier / toMultiplier
+    }
+
+}
+
+// MARK: - Category Detail View
+
+struct CategoryDetailView: View {
+    let category: String
+    let subcategories: [String]
+    let displayNames: [String: String]
+    let allItems: [TransactionItem]
+    let overallFrequency: String
+    let onUpdateItem: (String, Double, String) -> Void
+    let isIncome: Bool
+    
+    @State private var searchText = ""
+    @Environment(\.presentationMode) var presentationMode
+    
+    var filteredSubcategories: [String] {
+        if searchText.isEmpty {
+            return subcategories.sorted { (displayNames[$0] ?? $0) < (displayNames[$1] ?? $1) }
+        } else {
+            return subcategories.filter { subcategory in
+                let displayName = displayNames[subcategory] ?? subcategory
+                return displayName.localizedCaseInsensitiveContains(searchText)
+            }.sorted { (displayNames[$0] ?? $0) < (displayNames[$1] ?? $1) }
+        }
+    }
     
     var body: some View {
         VStack(spacing: 0) {
-            // Category header with swipe gesture
-            CategoryHeader(
-                category: category,
-                total: getCategoryTotal(),
-                isExpanded: isExpanded,
-                onToggleExpansion: onToggleExpansion,
-                isIncome: isIncome
-            )
-            .offset(x: dragOffset)
-            .scaleEffect(isDragging ? 0.98 : 1.0)
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        if !isDragging {
-                            withAnimation(.easeInOut(duration: 0.1)) {
-                                isDragging = true
-                            }
-                        }
-                        dragOffset = value.translation.width * 0.3 // Reduce sensitivity
-                    }
-                    .onEnded { value in
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            isDragging = false
-                            dragOffset = 0
-                            
-                            // Swipe to expand/collapse
-                            if abs(value.translation.width) > 50 {
-                                onToggleExpansion()
-                            }
-                        }
-                    }
-            )
+            // Header with total
+            VStack(spacing: 8) {
+                HStack {
+                    Circle()
+                        .fill(Color.categoryColors[category] ?? .gray)
+                        .frame(width: 20, height: 20)
+                    
+                    Text(category)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Spacer()
+                }
+                
+                HStack {
+                    let total = getCategoryTotal()
+                    Text("Total: $\(formattedNumber(total))")
+                        .font(.headline)
+                        .foregroundColor(total > 0 ? .primary : .secondary)
+                    
+                    Spacer()
+                    
+                    let activeCount = getActiveItemCount()
+                    Text("\(activeCount) of \(subcategories.count) active")
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                }
+            }
+            .padding()
+            .background(Color(.systemGray6))
             
-            // Subcategories (expandable)
-            if isExpanded {
-                VStack(spacing: 8) {
-                    ForEach(subcategories, id: \.self) { subcategory in
+            // Search bar
+            SearchBar(searchText: $searchText)
+            
+            // Subcategories list
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(filteredSubcategories, id: \.self) { subcategory in
                         ExpenseInputRow(
                             name: subcategory,
                             displayName: displayNames[subcategory] ?? subcategory,
@@ -320,20 +440,39 @@ private struct CategorySection: View {
                             onUpdateItem: onUpdateItem
                         )
                     }
+                    
+                    if filteredSubcategories.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.largeTitle)
+                                .foregroundColor(.secondary)
+                            Text("No items found")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                    }
                 }
-                .padding(.top, 8)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                .padding()
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .navigationTitle(category)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(false)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    hideKeyboard()
+                }
+            }
+        }
     }
     
     private func getCategoryTotal() -> Double {
         return subcategories.reduce(0) { total, subcategory in
-            total + getCurrentValue(for: subcategory)
+            total + convertToOverallFrequency(for: subcategory)
         }
     }
     
@@ -344,60 +483,9 @@ private struct CategorySection: View {
     private func getCurrentFrequency(for name: String) -> String {
         return allItems.first(where: { $0.name == name })?.frequency ?? overallFrequency
     }
-}
-
-private struct CategoryHeader: View {
-    let category: String
-    let total: Double
-    let isExpanded: Bool
-    let onToggleExpansion: () -> Void
-    let isIncome: Bool
     
-    var body: some View {
-        Button(action: onToggleExpansion) {
-            HStack {
-                // Category color dot
-                Circle()
-                    .fill(Color.categoryColors[category] ?? .gray)
-                    .frame(width: 16, height: 16)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(category)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                    
-                    if total > 0 {
-                        Text("$\(formattedNumber(total))")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("No \(isIncome ? "income" : "expenses") entered")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                // Swipe hint
-                if !isExpanded {
-                    Text("Swipe →")
-                        .font(.caption2)
-                        .foregroundColor(Color(.tertiaryLabel))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color(.systemGray5))
-                        .cornerRadius(8)
-                }
-                
-                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                    .foregroundColor(.secondary)
-                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                    .animation(.easeInOut(duration: 0.2), value: isExpanded)
-            }
-        }
-        .buttonStyle(PlainButtonStyle())
+    private func getActiveItemCount() -> Int {
+        return subcategories.filter { getCurrentValue(for: $0) > 0 }.count
     }
     
     private func formattedNumber(_ value: Double) -> String {
@@ -406,6 +494,14 @@ private struct CategoryHeader: View {
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+    }
+    
+    private func convertToOverallFrequency(for name: String) -> Double {
+        guard let item = allItems.first(where: { $0.name == name }) else { return 0 }
+        let base = item.amount
+        let fromMultiplier = SpendingInputView.frequencyMultiplier(from: item.frequency)
+        let toMultiplier = SpendingInputView.frequencyMultiplier(from: overallFrequency)
+        return base * fromMultiplier / toMultiplier
     }
 }
 
@@ -420,91 +516,68 @@ private struct ExpenseInputRow: View {
     @State private var amountText: String = ""
     @State private var selectedFrequency: String = ""
     @FocusState private var isAmountFocused: Bool
-    @State private var dragOffset: CGFloat = 0
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Expense name
-            VStack(alignment: .leading, spacing: 2) {
-                Text(displayName)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // Amount input
-            HStack(spacing: 4) {
-                Text("$")
-                    .foregroundColor(.secondary)
-                TextField("0", text: $amountText)
-                    .keyboardType(.decimalPad)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .frame(width: 80)
-                    .focused($isAmountFocused)
-                    .toolbar {
-                        ToolbarItemGroup(placement: .keyboard) {
-                            Spacer()
-                            Button("Done") {
-                                hideKeyboard()
-                                saveValue()
-                            }
-                        }
-                    }
-                    .onSubmit {
-                        saveValue()
-                    }
-                    .onChange(of: amountText) { _, newValue in
-                        // Allow only valid decimal input
-                        let filtered = newValue.filter { "0123456789.".contains($0) }
-                        if filtered != newValue {
-                            amountText = filtered
-                        }
-                    }
-            }
-            
-            // Frequency picker (compact)
-            Picker("", selection: $selectedFrequency) {
-                ForEach(["Weekly", "Fortnightly", "Monthly", "Quarterly", "Annual"], id: \.self) { freq in
-                    Text(freq)
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                // Expense name
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(displayName)
                         .font(.subheadline)
-                        .tag(freq)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                
+                // Amount input
+                HStack(spacing: 4) {
+                    Text("$")
+                        .foregroundColor(.secondary)
+                    TextField("0.00", text: $amountText)
+                        .keyboardType(.decimalPad)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .frame(width: 80)
+                        .focused($isAmountFocused)
+                        .onChange(of: amountText) { _, newValue in
+                            // Allow only valid decimal input
+                            let filtered = newValue.filter { "0123456789.".contains($0) }
+                            if filtered != newValue {
+                                amountText = filtered
+                            }
+                            saveValue()
+                        }
                 }
             }
-            .pickerStyle(MenuPickerStyle())
-            .font(.subheadline)
-            .frame(width: 50)
-            .onChange(of: selectedFrequency) { _, newValue in
-                saveValue()
+            
+            // Frequency picker (full width, smaller font)
+            HStack {
+                Spacer()
+                
+                Menu {
+                    ForEach(["Weekly", "Fortnightly", "Monthly", "Quarterly", "Annual"], id: \.self) { freq in
+                        Button(action: {
+                            selectedFrequency = freq
+                            saveValue()
+                        }) {
+                            Text(freq)
+                                .font(.subheadline)
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Text("\(selectedFrequency)")
+                            .font(.subheadline)
+                        Image(systemName: "chevron.down")
+                    }
+                }
             }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
         .background(Color(.systemGray6))
         .cornerRadius(8)
-        .offset(x: dragOffset)
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    dragOffset = value.translation.width * 0.2
-                }
-                .onEnded { value in
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        dragOffset = 0
-                        
-                        // Swipe right to quick-set to common amount
-                        if value.translation.width > 100 {
-                            quickSetAmount()
-                        }
-                        // Swipe left to clear
-                        else if value.translation.width < -100 {
-                            clearAmount()
-                        }
-                    }
-                }
-        )
         .onAppear {
             amountText = currentValue > 0 ? String(format: "%.2f", currentValue) : ""
             selectedFrequency = currentFrequency
@@ -519,25 +592,6 @@ private struct ExpenseInputRow: View {
     private func saveValue() {
         let amount = Double(amountText) ?? 0
         onUpdateItem(name, amount, selectedFrequency)
-    }
-    
-    private func quickSetAmount() {
-        // Set common amounts based on category
-        let commonAmounts: [String: Double] = [
-            "rent": 500, "mortgage": 600, "groceries": 150,
-            "electricity": 150, "fuel": 80, "phone": 50,
-            "internet": 80, "salary": 1200, "wages": 800
-        ]
-        
-        if let amount = commonAmounts[name] {
-            amountText = String(format: "%.2f", amount)
-            saveValue()
-        }
-    }
-    
-    private func clearAmount() {
-        amountText = ""
-        saveValue()
     }
 }
 

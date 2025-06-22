@@ -295,13 +295,21 @@ private struct HeaderSection: View {
                 
                 Spacer()
                 
-                VStack {
-                    Picker("Frequency", selection: $overallFrequency) {
-                        ForEach(["Weekly", "Fortnightly", "Monthly", "Quarterly", "Annual"], id: \.self) { freq in
-                            Text(freq).tag(freq)
+                Menu {
+                    ForEach(["Weekly", "Fortnightly", "Monthly", "Quarterly", "Annual"], id: \.self) { freq in
+                        Button(action: {
+                            overallFrequency = freq
+                        }) {
+                            Text(freq)
+                                .font(.subheadline)
                         }
                     }
-                    .pickerStyle(MenuPickerStyle())
+                } label: {
+                    HStack {
+                        Text("\(overallFrequency)")
+                            .font(.subheadline)
+                        Image(systemName: "chevron.down")
+                    }
                 }
             }
             
@@ -369,7 +377,7 @@ private struct BudgetHealthIndicator: View {
         
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Budget Usage")
+                Text("Budget usage")
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
@@ -425,9 +433,8 @@ private struct ChartControls: View {
                 Button(action: { selectedCategory = nil }) {
                     HStack {
                         Image(systemName: "chevron.left")
-                        Text("Back to Overview")
+                        Text("Back to overview")
                     }
-                    .foregroundColor(.blue)
                 }
                 Spacer()
                 Text(selectedCategory ?? "")
@@ -436,16 +443,16 @@ private struct ChartControls: View {
                 Spacer()
             }
             
-            Button(action: { showPercentages.toggle() }) {
-                HStack {
-                    Image(systemName: showPercentages ? "percent" : "dollarsign.circle")
-                }
-                .foregroundColor(.blue)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(8)
-            }
+            //Button(action: { showPercentages.toggle() }) {
+                //HStack {
+                    //Image(systemName: showPercentages ? "percent" : "dollarsign.circle")
+                //}
+                //.foregroundColor(.blue)
+                //.padding(.horizontal, 12)
+                //.padding(.vertical, 6)
+                //.background(Color.blue.opacity(0.1))
+                //.cornerRadius(8)
+            //}
         }
     }
 }
@@ -488,14 +495,14 @@ private struct InsightsSection: View {
         if selectedCategory == nil {
             HStack(spacing: 16) {
                 InsightCard(
-                    title: "Largest Expense",
+                    title: "Largest expense",
                     value: largestExpenseCategory,
                     icon: "exclamationmark.circle.fill",
                     color: .orange
                 )
                 
                 InsightCard(
-                    title: "Savings Rate",
+                    title: "Savings rate",
                     value: "\(Int(savingsRate))%",
                     icon: "banknote.fill",
                     color: .green
@@ -757,13 +764,14 @@ struct InsightsView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Financial Insights")
+            .navigationTitle("Financial insights")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
+                    .foregroundColor(.primary)
                 }
             }
         }
@@ -851,7 +859,7 @@ private struct FinancialHealthSection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Financial Health")
+            Text("Financial health")
                 .font(.title2)
                 .fontWeight(.semibold)
             
@@ -859,7 +867,7 @@ private struct FinancialHealthSection: View {
             
             HStack {
                 VStack(alignment: .leading) {
-                    Text("Overall Score")
+                    Text("Overall score")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Text("\(Int(healthScore))/100")
@@ -928,7 +936,7 @@ private struct SpendingTrendsSection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Spending Analysis")
+            Text("Spending analysis")
                 .font(.title2)
                 .fontWeight(.semibold)
             

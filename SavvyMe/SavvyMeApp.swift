@@ -17,11 +17,11 @@ struct SavvyMeApp: App {
             if appState.isAuthenticated {
                 MainTabView()
                     .environmentObject(appState)
-                    .preferredColorScheme(.light) // 👈 forces light mode
+                    //.preferredColorScheme(.light) // 👈 forces light mode
             } else {
                 AuthenticationView()
                     .environmentObject(appState)
-                    .preferredColorScheme(.light) // 👈 forces light mode
+                    //.preferredColorScheme(.light) // 👈 forces light mode
             }
         }
         .modelContainer(for: TransactionItem.self) // 👈 Add this line
