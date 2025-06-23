@@ -14,17 +14,17 @@ struct SavvyMeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if appState.isAuthenticated {
-                MainTabView()
-                    .environmentObject(appState)
-                    //.preferredColorScheme(.light) // 👈 forces light mode
-            } else {
-                AuthenticationView()
-                    .environmentObject(appState)
-                    //.preferredColorScheme(.light) // 👈 forces light mode
+            Group {
+                if appState.isAuthenticated {
+                    MainTabView()
+                } else {
+                    AuthenticationView()
+                }
             }
+            .environmentObject(appState)
+            .preferredColorScheme(appState.useDarkMode ? .dark : .light)
         }
-        .modelContainer(for: TransactionItem.self) // 👈 Add this line
+        .modelContainer(for: TransactionItem.self)
     }
 }
 
@@ -35,4 +35,25 @@ struct ColorTheme {
     static let background = Color("BackgroundColor")
     static let text = Color("TextColor")
     static let nav = Color("NavColor")
+}
+
+struct ColorSchemeToggleButton: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        Button(action: {
+            appState.useDarkMode.toggle()
+        }) {
+            Image(systemName: appState.useDarkMode ? "sun.max.fill" : "moon.fill")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
+                .foregroundColor(.primary)
+                .padding(6)
+                .background(Color(.systemGray5).opacity(0.8))
+                .clipShape(Circle())
+                .shadow(radius: 1)
+        }
+        .accessibilityLabel("Toggle light/dark mode")
+    }
 }

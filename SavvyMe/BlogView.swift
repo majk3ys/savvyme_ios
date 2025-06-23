@@ -149,9 +149,9 @@ private struct HeaderSection: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Text("Category:")
+                Text("Select category:")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.primary)
                 
                 Spacer()
                 
@@ -176,7 +176,7 @@ private struct HeaderSection: View {
             HStack {
                 Text("\(postCount) \(postCount == 1 ? "article" : "articles")")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.primary)
                 
                 Spacer()
             }
@@ -416,6 +416,7 @@ struct BlogPostDetailView: View {
                     Button("Done") {
                         presentationMode.wrappedValue.dismiss()
                     }
+                    .foregroundColor(.primary)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -425,6 +426,7 @@ struct BlogPostDetailView: View {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
                     .padding()
+                    .foregroundColor(.primary)
                 }
             }
             .onAppear {

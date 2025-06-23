@@ -213,7 +213,7 @@ private struct HeaderSection: View {
         HStack {
             Text("Select frequency:")
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.primary)
             
             Spacer()
             
@@ -315,10 +315,10 @@ private struct CategoryCard: View {
                     if activeCount > 0 {
                         Text("\(activeCount) active")
                             .font(.caption)
-                            .foregroundColor(.blue)
+                            .foregroundColor(ColorTheme.primary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.1))
+                            .background(ColorTheme.primary.opacity(0.1))
                             .cornerRadius(8)
                     }
                     

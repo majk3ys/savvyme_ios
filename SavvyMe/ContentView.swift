@@ -8,39 +8,44 @@
 import SwiftUI
 
 struct MainTabView: View {
-
-
+    @EnvironmentObject var appState: AppState
     @State private var values: [String: String] = [:]
     @State private var frequencies: [String: String] = [:]
     @State private var overallFrequency: String = "Annual"
 
     var body: some View {
-        TabView {
-            SpendingInputView(
-                overallFrequency: $overallFrequency
-            )
-                .tabItem {
-                    Label("My finances", systemImage: "square.and.pencil")
-                }
+        ZStack(alignment: .topTrailing) {
+            TabView {
+                SpendingInputView(
+                    overallFrequency: $overallFrequency
+                )
+                    .tabItem {
+                        Label("My finances", systemImage: "square.and.pencil")
+                    }
 
-            DashboardView(
-                overallFrequency: $overallFrequency
-            )
-                .tabItem {
-                    Label("Dashboard", systemImage: "chart.bar")
-                }
+                DashboardView(
+                    overallFrequency: $overallFrequency
+                )
+                    .tabItem {
+                        Label("Dashboard", systemImage: "chart.bar")
+                    }
 
-            BlogView()
-                .tabItem {
-                    Label("Blog", systemImage: "book")
-                }
+                BlogView()
+                    .tabItem {
+                        Label("Blog", systemImage: "book")
+                    }
 
-            UserProfileView()
-                .tabItem {
-                    Label("Profile", systemImage: "person.crop.circle")
-                }
+                UserProfileView()
+                    .tabItem {
+                        Label("Profile", systemImage: "person.crop.circle")
+                    }
+            }
+            .accentColor(ColorTheme.primary)
+
+            ColorSchemeToggleButton()
+                .padding(.top, 50)
+                .padding(.trailing, 12)
         }
-        .accentColor(ColorTheme.primary)
     }
 }
 

@@ -10,6 +10,7 @@ import SwiftUI
 
 class AppState: ObservableObject {
     @Published var isAuthenticated = false
+    @Published var useDarkMode: Bool = false
 }
 
 struct AuthenticationView: View {
@@ -33,10 +34,12 @@ struct AuthenticationView: View {
                 // For now, we simulate successful login
                 appState.isAuthenticated = true
             }
+            .foregroundColor(ColorTheme.primary)
 
             Button("Register") {
                 // Navigate to register screen (optional)
             }
+            .foregroundColor(ColorTheme.primary)
         }
         .padding()
     }

@@ -71,40 +71,63 @@ struct DashboardView: View {
                         overallFrequency: $overallFrequency
                     )
 
-                    ChartSection(
-                        selectedCategory: $selectedCategory,
-                        showPercentages: $showPercentages,
-                        pieData: pieData(),
-                        categorySpending: categorySpending(),
-                        totalSpending: totalSpending(),
-                        formattedNumber: formattedNumber
-                    )
-
-                    InsightsSection(
-                        selectedCategory: selectedCategory,
-                        largestExpenseCategory: largestExpenseCategory(),
-                        savingsRate: savingsRate()
-                    )
-
-                    if selectedCategory == nil {
-                        CategoryBreakdownSection(
-                            categoryOrder: categoryOrder,
+                    if hasSpendingData {
+                        ChartSection(
+                            selectedCategory: $selectedCategory,
+                            showPercentages: $showPercentages,
+                            pieData: pieData(),
                             categorySpending: categorySpending(),
                             totalSpending: totalSpending(),
-                            overallFrequency: overallFrequency,
-                            formattedNumber: formattedNumber,
-                            selectedCategory: $selectedCategory
+                            formattedNumber: formattedNumber
                         )
                     } else {
-                        SubcategoryBreakdownSection(
-                            selectedCategory: selectedCategory!,
-                            getSubcategoryData: getSubcategoryData,
-                            categorySpending: categorySpending(),
-                            totalSpending: totalSpending(),
-                            overallFrequency: overallFrequency,
-                            formattedNumber: formattedNumber,
-                            displayNames: displayNames
+                        VStack(spacing: 16) {
+                            Text("No data available.\n Start entering your spending in \"My finances\"")
+                                .multilineTextAlignment(.center)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(12)
+                        }
+                        .padding()
+                    }
+
+
+                    if hasSpendingData {
+                        InsightsSection(
+                            selectedCategory: selectedCategory,
+                            largestExpenseCategory: largestExpenseCategory(),
+                            savingsRate: savingsRate()
                         )
+                    } else {
+                        // Empty space instead of insight cards
+                        HStack(spacing: 16) {
+                            InsightCard(title: "Largest expense", value: "", icon: "exclamationmark.circle.fill", color: .orange)
+                            InsightCard(title: "Savings rate", value: "", icon: "banknote.fill", color: .green)
+                        }
+                    }
+
+                    if hasSpendingData {
+                        if selectedCategory == nil {
+                            CategoryBreakdownSection(
+                                categoryOrder: categoryOrder,
+                                categorySpending: categorySpending(),
+                                totalSpending: totalSpending(),
+                                overallFrequency: overallFrequency,
+                                formattedNumber: formattedNumber,
+                                selectedCategory: $selectedCategory
+                            )
+                        } else {
+                            SubcategoryBreakdownSection(
+                                selectedCategory: selectedCategory!,
+                                getSubcategoryData: getSubcategoryData,
+                                categorySpending: categorySpending(),
+                                totalSpending: totalSpending(),
+                                overallFrequency: overallFrequency,
+                                formattedNumber: formattedNumber,
+                                displayNames: displayNames
+                            )
+                        }
                     }
                 }
                 .padding()
@@ -252,6 +275,11 @@ struct DashboardView: View {
     func formatLabel(_ key: String) -> String {
         return displayNames[key] ?? key.capitalized
     }
+    
+    var hasSpendingData: Bool {
+        totalSpending() > 0
+    }
+
 }
 
 // MARK: - Extracted Sub-views
@@ -743,24 +771,37 @@ struct InsightsView: View {
         NavigationView {
             ScrollView {
                 LazyVStack(spacing: 20) {
-                    // Financial Health Score
-                    FinancialHealthSection(
-                        totalIncome: totalIncome,
-                        totalSpending: totalSpending
-                    )
-                    
-                    // Spending Trends
-                    SpendingTrendsSection(
-                        totalSpending: totalSpending,
-                        categories: categories
-                    )
-                    
-                    // Recommendations
-                    RecommendationsSection(
-                        totalIncome: totalIncome,
-                        totalSpending: totalSpending,
-                        categories: categories
-                    )
+            
+                    if totalSpending > 0 {
+                        // Financial Health Score
+                        FinancialHealthSection(
+                            totalIncome: totalIncome,
+                            totalSpending: totalSpending
+                        )
+                        
+                        // Spending Trends
+                        SpendingTrendsSection(
+                            totalSpending: totalSpending,
+                            categories: categories
+                        )
+                        
+                        // Recommendations
+                        RecommendationsSection(
+                            totalIncome: totalIncome,
+                            totalSpending: totalSpending,
+                            categories: categories
+                        )
+                    }
+                    else {
+                        VStack(spacing: 16) {
+                            Text("No data available.\n Start entering your spending in \"My finances\"")
+                                .multilineTextAlignment(.center)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(12)
+                        }
+                    }
                 }
                 .padding()
             }
