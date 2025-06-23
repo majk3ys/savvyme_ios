@@ -59,3 +59,10 @@ extension Color {
         return base.opacity(0.5 + 0.5 * fraction) // Shades from 50% to 100%
     }
 }
+
+// MARK: - Extensions
+extension View {
+    func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+}
