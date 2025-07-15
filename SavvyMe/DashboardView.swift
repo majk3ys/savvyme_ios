@@ -4,14 +4,23 @@ import SwiftData
 
 struct DashboardView: View {
     @Binding var overallFrequency: String
+    @Binding var selectedMonth: Int
+    @Binding var selectedYear: Int
     @Query private var allItems: [TransactionItem]
     @State private var selectedCategory: String? = nil
+    @State private var selectedSubcategory: String? = nil
     @State private var showingInsights = false
     @State private var showPercentages = false
+    @State private var showBenchmarks = false
+    @State private var showingDatePicker = false
+    @State private var showTrendChartView = false
+    @AppStorage("profile_last_updated") private var profileLastUpdated: TimeInterval = 0
+    @StateObject private var benchmarkManager = BenchmarkDataManager()
+    @State private var benchmarkComparisons: [UserBenchmarkComparison] = []
 
-    private let categoryOrder = ["Home", "Daily living", "Transport", "Entertainment & personal"]
+    static let categoryOrder = ["Home", "Daily living", "Transport", "Entertainment & personal", "Income"]
 
-    private let spendingCategories: [String: [String]] = [
+    static let spendingCategories: [String: [String]] = [
         "Home": ["mortgage", "rent", "homeInsurance", "electricity", "gas", "water", "phone", "internet", "furniture", "otherHome"],
         "Daily living": ["groceries", "restaurants", "medical", "healthInsurance", "education", "childCare", "petCare", "otherDailyLiving"],
         "Transport": ["fuel", "servicing", "regoInsurance", "publicTransport", "otherTransport"],
@@ -59,39 +68,31 @@ struct DashboardView: View {
         "holidays": "Holidays",
         "otherPersonal": "Other entertainment & personal"
     ]
+    
+    var filteredItems: [TransactionItem] {
+        allItems.filter { item in
+            let itemDate = item.date ?? Date()
+            let itemMonth = Calendar.current.component(.month, from: itemDate)
+            let itemYear = Calendar.current.component(.year, from: itemDate)
+            return itemMonth == selectedMonth && itemYear == selectedYear
+        }
+    }
 
     var body: some View {
         NavigationView {
             ScrollView {
                 LazyVStack(spacing: 20) {
+                    TimeSelectionHeader(
+                        selectedMonth: $selectedMonth,
+                        selectedYear: $selectedYear,
+                        showingDatePicker: $showingDatePicker
+                    )
                     HeaderSection(
                         totalIncome: totalIncome(),
                         totalSpending: totalSpending(),
                         remainingBudget: remainingBudget(),
                         overallFrequency: $overallFrequency
                     )
-
-                    if hasSpendingData {
-                        ChartSection(
-                            selectedCategory: $selectedCategory,
-                            showPercentages: $showPercentages,
-                            pieData: pieData(),
-                            categorySpending: categorySpending(),
-                            totalSpending: totalSpending(),
-                            formattedNumber: formattedNumber
-                        )
-                    } else {
-                        VStack(spacing: 16) {
-                            Text("No data available.\n Start entering your spending in \"My finances\"")
-                                .multilineTextAlignment(.center)
-                                .padding()
-                                .frame(maxWidth: .infinity)
-                                .background(Color(.systemGray6))
-                                .cornerRadius(12)
-                        }
-                        .padding()
-                    }
-
 
                     if hasSpendingData {
                         InsightsSection(
@@ -107,37 +108,86 @@ struct DashboardView: View {
                         }
                     }
 
+                    
                     if hasSpendingData {
+                        ChartSection(
+                            selectedCategory: $selectedCategory,
+                            selectedSubcategory: $selectedSubcategory,
+                            showTrendChartView: $showTrendChartView,
+                            pieData: pieData(),
+                            categorySpending: categorySpending(),
+                            totalSpending: totalSpending(),
+                            formattedNumber: formattedNumber,
+                            allItems: allItems,
+                            selectedDate: selectedDate()
+                        )
+                    } else {
+                        VStack(spacing: 16) {
+                            Text("No data available.\n Start entering your spending in \"My finances\"")
+                                .multilineTextAlignment(.center)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(12)
+                        }
+                        .padding()
+                    }
+
+                    if hasSpendingData {
+                        AIInsightSection(
+                            selectedCategory: selectedCategory,
+                            selectedSubcategory: selectedSubcategory,
+                            benchmarkComparisons: benchmarkComparisons,
+                            getMonthlyTrendChange: getMonthlyTrendChange,
+                            displayNames: displayNames
+                        )
+                        
                         if selectedCategory == nil {
                             CategoryBreakdownSection(
-                                categoryOrder: categoryOrder,
+                                categoryOrder: DashboardView.categoryOrder,
                                 categorySpending: categorySpending(),
                                 totalSpending: totalSpending(),
                                 overallFrequency: overallFrequency,
                                 formattedNumber: formattedNumber,
-                                selectedCategory: $selectedCategory
+                                selectedCategory: $selectedCategory,
+                                benchmarkComparisons: benchmarkComparisons,
+                                displayNames: displayNames,
+                                showBenchmarks: $showBenchmarks
                             )
                         } else {
                             SubcategoryBreakdownSection(
                                 selectedCategory: selectedCategory!,
+                                selectedSubcategory: $selectedSubcategory,
+                                selectedDate: selectedDate(),
                                 getSubcategoryData: getSubcategoryData,
                                 categorySpending: categorySpending(),
                                 totalSpending: totalSpending(),
                                 overallFrequency: overallFrequency,
                                 formattedNumber: formattedNumber,
-                                displayNames: displayNames
+                                displayNames: displayNames,
+                                benchmarkComparisons: benchmarkComparisons,
+                                showBenchmarks: $showBenchmarks
                             )
                         }
+                    }
+                }
+                .onAppear {
+                   benchmarkComparisons = getBenchmarkComparisons()
+                }
+                .onChange(of: showBenchmarks) { newValue in
+                    if newValue && benchmarkComparisons.isEmpty {
+                        benchmarkComparisons = getBenchmarkComparisons()
                     }
                 }
                 .padding()
             }
             .navigationTitle("Dashboard")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button("Insights") {
                         showingInsights.toggle()
                     }
+                    .foregroundColor(.nav)
                 }
             }
             .sheet(isPresented: $showingInsights) {
@@ -148,9 +198,75 @@ struct DashboardView: View {
                     frequency: overallFrequency
                 )
             }
+            .sheet(isPresented: $showingDatePicker) {
+                DatePickerSheet(
+                    selectedMonth: $selectedMonth,
+                    selectedYear: $selectedYear,
+                    isPresented: $showingDatePicker
+                )
+            }
+        }
+        .id(profileLastUpdated) // <--- This forces view diffing/reconstruction
+    }
+
+    func selectedDate() -> Date {
+        let components = DateComponents(year: selectedYear, month: selectedMonth, day: 1)
+        return Calendar.current.date(from: components) ?? Date()
+    }
+    
+    // MARK: - Benchmark Methods
+    
+    private func hasUserProfile() -> Bool {
+        let state = UserDefaults.standard.string(forKey: "user_state") ?? "Any"
+        let adultsCount = UserDefaults.standard.string(forKey: "user_adults_count") ?? ""
+        let childrenCount = UserDefaults.standard.string(forKey: "user_children_count") ?? ""
+        let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
+        
+        return state != "Any" && !adultsCount.isEmpty && !childrenCount.isEmpty && incomeRange != "Any"
+    }
+    
+    private func getBenchmarkComparisons() -> [UserBenchmarkComparison] {
+        guard hasUserProfile() else { return [] }
+        
+        let userState = UserDefaults.standard.string(forKey: "user_state") ?? "Any"
+        let adultsCount = Int(UserDefaults.standard.string(forKey: "user_adults_count") ?? "1") ?? 1
+        let childrenCount = Int(UserDefaults.standard.string(forKey: "user_children_count") ?? "0") ?? 0
+        let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
+        
+        // Create spending dictionary from current items
+        var userSpending: [String: Double] = [:]
+        for category in DashboardView.spendingCategories.values.flatMap({ $0 }) {
+            userSpending[category] = adjustedValue(for: category)
+        }
+        
+        let comparisons = benchmarkManager.getBenchmarkComparisons(
+            userState: userState,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            incomeRange: incomeRange,
+            userSpending: userSpending,
+            overallFrequency: self.overallFrequency
+        )
+        
+        // Adjust benchmark amounts for current frequency
+        let frequencyMultiplier = 52.0 / self.frequencyMultiplier(from: overallFrequency) // Convert from weekly
+        
+        return comparisons.map { comparison in
+            UserBenchmarkComparison(
+                category: comparison.category,
+                subcategory: comparison.subcategory,
+                userAmount: comparison.userAmount,
+                benchmarkAmount: comparison.benchmarkAmount * frequencyMultiplier,
+                percentile: comparison.percentile,
+                isAboveAverage: comparison.isAboveAverage,
+                difference: comparison.difference,
+                percentageDifference: comparison.percentageDifference
+            )
         }
     }
 
+    // MARK: - Existing Methods (unchanged)
+    
     struct PieChartItem: Identifiable {
         let id = UUID()
         let label: String
@@ -159,8 +275,18 @@ struct DashboardView: View {
     }
 
     func pieData() -> [PieChartItem] {
-        if let selected = selectedCategory {
-            let subItems = spendingCategories[selected]?.compactMap { subKey -> PieChartItem? in
+        if let selectedSubcatKey = selectedSubcategory {
+            // Use key directly
+            let amount = adjustedValue(for: selectedSubcatKey)
+            if amount > 0 {
+                let displayLabel = displayNames[selectedSubcatKey] ?? selectedSubcatKey
+                return [PieChartItem(label: displayLabel, amount: amount, percentage: 100)]
+            } else {
+                return []
+            }
+        } else if let selectedCat = selectedCategory {
+            // Return all subcategories for that category (existing logic)
+            let subItems = DashboardView.spendingCategories[selectedCat]?.compactMap { subKey -> PieChartItem? in
                 let amount = adjustedValue(for: subKey)
                 return amount > 0 ? PieChartItem(label: displayNames[subKey] ?? subKey, amount: amount, percentage: nil) : nil
             } ?? []
@@ -171,14 +297,15 @@ struct DashboardView: View {
                 PieChartItem(label: $0.label, amount: $0.amount, percentage: total > 0 ? ($0.amount / total) * 100 : 0)
             }
         } else {
-            let totalDict: [String: Double] = categoryOrder.reduce(into: [:]) { result, key in
-                let keys = spendingCategories[key] ?? []
+            // Return all categories (existing logic)
+            let totalDict: [String: Double] = DashboardView.categoryOrder.reduce(into: [:]) { result, key in
+                let keys = DashboardView.spendingCategories[key] ?? []
                 result[key] = keys.map { adjustedValue(for: $0) }.reduce(0, +)
             }
 
             let total = totalDict.values.reduce(0, +)
 
-            return categoryOrder.compactMap { key in
+            return DashboardView.categoryOrder.compactMap { key in
                 if let value = totalDict[key] {
                     return PieChartItem(label: key, amount: value, percentage: total > 0 ? (value / total) * 100 : 0)
                 }
@@ -187,15 +314,16 @@ struct DashboardView: View {
         }
     }
 
+
     func categorySpending() -> [String: Double] {
-        return categoryOrder.reduce(into: [:]) { result, key in
-            let keys = spendingCategories[key] ?? []
+        return DashboardView.categoryOrder.reduce(into: [:]) { result, key in
+            let keys = DashboardView.spendingCategories[key] ?? []
             result[key] = keys.map { adjustedValue(for: $0) }.reduce(0, +)
         }
     }
 
     func getSubcategoryData(for category: String) -> [PieChartItem] {
-       guard let subKeys = spendingCategories[category] else { return [] }
+        guard let subKeys = DashboardView.spendingCategories[category] else { return [] }
        let subItems = subKeys.compactMap { subKey -> PieChartItem? in
            let amount = adjustedValue(for: subKey)
            return amount > 0 ? PieChartItem(label: displayNames[subKey] ?? subKey, amount: amount, percentage: nil) : nil
@@ -205,21 +333,65 @@ struct DashboardView: View {
            PieChartItem(label: $0.label, amount: $0.amount, percentage: total > 0 ? ($0.amount / total) * 100 : 0)
        }
     }
+    
+    func getMonthlyTrendChange(for key: String) -> Double? {
+        let calendar = Calendar.current
+        
+        // Use selectedYear and selectedMonth to build selectedDate (start of month)
+        let components = DateComponents(year: selectedYear, month: selectedMonth, day: 1)
+        guard let selectedDate = calendar.date(from: components) else { return nil }
+        guard let lastMonthDate = calendar.date(byAdding: .month, value: -1, to: selectedDate) else { return nil }
+        
+        func frequencyMultiplier(from frequency: String) -> Double {
+            switch frequency {
+            case "Weekly": return 52
+            case "Fortnightly": return 26
+            case "Monthly": return 12
+            case "Quarterly": return 4
+            case "Annual": return 1
+            default: return 1
+            }
+        }
+
+        func totalForMonth(_ date: Date) -> Double {
+            let year = calendar.component(.year, from: date)
+            let month = calendar.component(.month, from: date)
+            
+            return allItems.filter { item in
+                guard let itemDate = item.date else { return false }
+                let itemYear = calendar.component(.year, from: itemDate)
+                let itemMonth = calendar.component(.month, from: itemDate)
+                return item.name == key && itemYear == year && itemMonth == month
+            }
+            .reduce(0) { partialResult, item in
+                // Adjust amount to annual base and then scale to monthly
+                let annualizedAmount = item.amount * frequencyMultiplier(from: item.frequency)
+                return partialResult + (annualizedAmount / 12.0)
+            }
+        }
+
+        let currentTotal = totalForMonth(selectedDate)
+        let lastTotal = totalForMonth(lastMonthDate)
+
+        guard lastTotal > 0 else { return nil }
+        
+        return ((currentTotal - lastTotal) / lastTotal) * 100
+    }
 
     func adjustedValue(for key: String) -> Double {
-        guard let item = allItems.first(where: { $0.name == key }) else { return 0 }
+        guard let item = filteredItems.first(where: { $0.name == key }) else { return 0 }
         let freq = item.frequency
         return item.amount * frequencyMultiplier(from: freq) / frequencyMultiplier(from: overallFrequency)
     }
 
     func totalIncome() -> Double {
         let incomeKeys = ["salary", "interest", "investment", "otherIncome"]
-        return allItems.filter { incomeKeys.contains($0.name) }.reduce(0) { $0 + adjustedValue(for: $1.name) }
+        return filteredItems.filter { incomeKeys.contains($0.name) }.reduce(0) { $0 + adjustedValue(for: $1.name) }
     }
 
     func totalSpending() -> Double {
-        let spendingKeys = spendingCategories.values.flatMap { $0 }
-        return allItems.filter { spendingKeys.contains($0.name) }.reduce(0) { $0 + adjustedValue(for: $1.name) }
+        let spendingKeys = DashboardView.spendingCategories.values.flatMap { $0 }
+        return filteredItems.filter { spendingKeys.contains($0.name) }.reduce(0) { $0 + adjustedValue(for: $1.name) }
     }
 
     func remainingBudget() -> Double {
@@ -259,9 +431,9 @@ struct DashboardView: View {
     func formattedNumber(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
     }
 
     func formattedNumberShort(_ value: Double) -> String {
@@ -279,7 +451,6 @@ struct DashboardView: View {
     var hasSpendingData: Bool {
         totalSpending() > 0
     }
-
 }
 
 // MARK: - Extracted Sub-views
@@ -355,9 +526,9 @@ private struct HeaderSection: View {
     private func formattedNumber(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
     }
     
     private func budgetColor(for percentage: Double) -> Color {
@@ -426,23 +597,53 @@ private struct BudgetHealthIndicator: View {
 // Replaces chartSection()
 private struct ChartSection: View {
     @Binding var selectedCategory: String?
-    @Binding var showPercentages: Bool
-    let pieData: [DashboardView.PieChartItem] // Pass the already computed data
+    @Binding var selectedSubcategory: String?
+    @Binding var showTrendChartView: Bool
+    let pieData: [DashboardView.PieChartItem]
     let categorySpending: [String: Double]
     let totalSpending: Double
-    let formattedNumber: (Double) -> String // Pass the function
+    let formattedNumber: (Double) -> String
+    let allItems: [TransactionItem]
+    let selectedDate: Date
 
     var body: some View {
-        VStack {
-            ChartControls(selectedCategory: $selectedCategory, showPercentages: $showPercentages)
-                .padding(.horizontal)
-
-            ChartView(
+        VStack(spacing: 12) {
+            // Toggle button
+            HStack {
+                Spacer()
+                Picker("", selection: $showTrendChartView) {
+                    Text("Breakdown").tag(false)
+                    Text("Trend").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+            }
+            .padding(.horizontal)
+            
+            ChartControls(
                 selectedCategory: $selectedCategory,
-                showPercentages: $showPercentages,
-                pieData: pieData
+                selectedSubcategory: $selectedSubcategory,
+                showTrendView: $showTrendChartView
             )
-            .frame(height: 350)
+                .padding(.horizontal)
+                .padding(.bottom)
+
+            if showTrendChartView {
+                CategoryTrendChart(
+                    allItems: allItems,
+                    selectedCategory: selectedCategory,
+                    selectedDate: selectedDate,
+                    selectedSubcategory: $selectedSubcategory
+                )
+                .frame(height: 350)
+            } else {
+                ChartView(
+                    selectedCategory: $selectedCategory,
+                    selectedSubcategory: $selectedSubcategory,
+                    pieData: pieData
+                )
+                .frame(height: 350)
+            }
         }
         .padding()
         .background(Color(.systemBackground))
@@ -453,41 +654,58 @@ private struct ChartSection: View {
 
 private struct ChartControls: View {
     @Binding var selectedCategory: String?
-    @Binding var showPercentages: Bool
+    @Binding var selectedSubcategory: String?
+    @Binding var showTrendView: Bool
 
     var body: some View {
         HStack {
-            if selectedCategory != nil {
+            if let category = selectedCategory, let subcategory = selectedSubcategory {
+                // Back to category from subcategory (only show in trend view)
+                Button(action: { selectedSubcategory = nil }) {
+                    HStack {
+                        Image(systemName: "chevron.left")
+                        Text("Back to \(category)")
+                    }
+                    .font(.footnote)
+                }
+                Spacer()
+                Text(formattedLabel(from: subcategory))
+                    .font(.headline)
+                    .multilineTextAlignment(.trailing)
+            } else if let category = selectedCategory {
+                // Back to overview from category
                 Button(action: { selectedCategory = nil }) {
                     HStack {
                         Image(systemName: "chevron.left")
                         Text("Back to overview")
                     }
+                    .font(.footnote)
                 }
                 Spacer()
-                Text(selectedCategory ?? "")
+                Text(formattedLabel(from: category))
                     .font(.headline)
+                    .multilineTextAlignment(.trailing)
             } else {
                 Spacer()
             }
-            
-            //Button(action: { showPercentages.toggle() }) {
-                //HStack {
-                    //Image(systemName: showPercentages ? "percent" : "dollarsign.circle")
-                //}
-                //.foregroundColor(.blue)
-                //.padding(.horizontal, 12)
-                //.padding(.vertical, 6)
-                //.background(Color.blue.opacity(0.1))
-                //.cornerRadius(8)
-            //}
         }
+        .padding(.horizontal)
+    }
+
+    // CamelCase → "Title case"
+    private func formattedLabel(from key: String) -> String {
+        let spaced = key.replacingOccurrences(
+            of: "([a-z])([A-Z])",
+            with: "$1 $2",
+            options: .regularExpression
+        )
+        return spaced.prefix(1).capitalized + spaced.dropFirst().lowercased()
     }
 }
 
 private struct ChartView: View {
     @Binding var selectedCategory: String?
-    @Binding var showPercentages: Bool
+    @Binding var selectedSubcategory: String?
     let pieData: [DashboardView.PieChartItem]
 
     var body: some View {
@@ -499,17 +717,270 @@ private struct ChartView: View {
                     angularInset: 2.0
                 )
                 .foregroundStyle(
-                    selectedCategory != nil
-                    ? Color.shade(for: selectedCategory!, index: pieData.firstIndex(where: { $0.id == item.id }) ?? 0, total: pieData.count)
+                    (selectedCategory != nil || selectedSubcategory != nil)
+                    ? Color.shade(for: selectedCategory ?? selectedSubcategory ?? "",
+                                  index: pieData.firstIndex(where: { $0.id == item.id }) ?? 0,
+                                  total: pieData.count)
                     : (Color.categoryColors[item.label] ?? .gray)
                 )
-                .position(by: .value("Category", item.label)) // required
+                .position(by: .value("Category", item.label))
                 .opacity(item.amount > 0 ? 1.0 : 0.1)
             }
         }
         .chartLegend(.visible)
         .chartAngleSelection(value: $selectedCategory)
         .animation(.easeInOut, value: selectedCategory)
+    }
+}
+
+struct CategoryTrendChart: View {
+    let allItems: [TransactionItem]
+    let selectedCategory: String?
+    let selectedDate: Date
+    @Binding var selectedSubcategory: String?
+
+    private func frequencyMultiplier(from frequency: String) -> Double {
+        switch frequency {
+        case "Weekly": return 52
+        case "Fortnightly": return 26
+        case "Monthly": return 12
+        case "Quarterly": return 4
+        case "Annual": return 1
+        default: return 1
+        }
+    }
+
+    private var monthRange: [Date] {
+        let calendar = Calendar.current
+        return (-6...3).compactMap { offset in
+            calendar.date(byAdding: .month, value: offset, to: selectedDate)
+        }
+    }
+
+    private func groupedData() -> [String: [Date: Double]] {
+        let filteredItems = allItems.filter { $0.date != nil }
+
+        let calendar = Calendar.current
+
+        var result: [String: [Date: Double]] = [:]
+
+        if let category = selectedCategory {
+            // If a specific subcategory is selected, show only that one
+            if let selectedSub = selectedSubcategory {
+                for item in filteredItems where item.name == selectedSub {
+                    guard let date = item.date else { continue }
+                    let comps = calendar.dateComponents([.year, .month], from: date)
+                    guard let monthStart = calendar.date(from: comps) else { continue }
+
+                    let adjusted = item.amount * frequencyMultiplier(from: item.frequency) / 12
+                    let label = item.name
+
+                    result[label, default: [:]][monthStart, default: 0] += adjusted
+                }
+            } else {
+                // Show all subcategories
+                let subcategories = DashboardView.spendingCategories[category] ?? []
+
+                for item in filteredItems where subcategories.contains(item.name) {
+                    guard let date = item.date else { continue }
+                    let comps = calendar.dateComponents([.year, .month], from: date)
+                    guard let monthStart = calendar.date(from: comps) else { continue }
+
+                    let adjusted = item.amount * frequencyMultiplier(from: item.frequency) / 12
+                    let label = item.name
+
+                    result[label, default: [:]][monthStart, default: 0] += adjusted
+                }
+            }
+        } else {
+            // Show top-level categories
+            for item in filteredItems {
+                guard let date = item.date else { continue }
+
+                // Find which top-level category this item belongs to
+                guard let category = DashboardView.spendingCategories.first(where: { $0.value.contains(item.name) })?.key else {
+                    continue
+                }
+
+                let comps = calendar.dateComponents([.year, .month], from: date)
+                guard let monthStart = calendar.date(from: comps) else { continue }
+
+                let adjusted = item.amount * frequencyMultiplier(from: item.frequency) / 12
+
+                result[category, default: [:]][monthStart, default: 0] += adjusted
+            }
+        }
+        return result
+    }
+
+    private func colorForKey(_ key: String) -> Color {
+        if let category = selectedCategory {
+            // For subcategories, use shade colors
+            let subcategories = DashboardView.spendingCategories[category] ?? []
+            if let index = subcategories.firstIndex(of: key) {
+                return Color.shade(for: category, index: index, total: subcategories.count)
+            }
+        } else {
+            // For top-level categories, use category colors
+            return Color.categoryColors[key] ?? .gray
+        }
+        return .gray
+    }
+    
+    private func formattedLabel(from key: String) -> String {
+        // Insert space before capital letters
+        let spaced = key.replacingOccurrences(
+            of: "([a-z])([A-Z])",
+            with: "$1 $2",
+            options: .regularExpression
+        )
+        // Capitalise first letter only
+        return spaced.prefix(1).capitalized + spaced.dropFirst().lowercased()
+    }
+
+    var body: some View {
+        let data = groupedData()
+        let months = monthRange.sorted()
+
+        VStack(spacing: 16) {
+            Chart {
+                ForEach(Array(data.keys), id: \.self) { key in
+                    let values = months.map { date in
+                        (date: date, value: data[key]?[date] ?? 0)
+                    }
+
+                    let label = formattedLabel(from: key)
+
+                    ForEach(values, id: \.date) { entry in
+                        LineMark(
+                            x: .value("Month", entry.date),
+                            y: .value("Value", entry.value)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(by: .value("Label", label)) // ✅ Legend uses label
+                        .symbol(Circle())
+                    }
+                }
+
+                if selectedCategory == nil || (selectedCategory != nil && selectedSubcategory == nil) {
+                    let totalValues = months.map { date in
+                        let total = data.values.reduce(0) { $0 + ($1[date] ?? 0) }
+                        return (date: date, value: total)
+                    }
+
+                    ForEach(totalValues, id: \.date) { entry in
+                        LineMark(
+                            x: .value("Month", entry.date),
+                            y: .value("Total", entry.value)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(by: .value("Label", "Total"))
+                        .lineStyle(StrokeStyle(lineWidth: 2, dash: [4]))
+                        .symbol(Circle())
+                    }
+                }
+            }
+            .chartForegroundStyleScale { (label: String) in
+                if label == "Total" {
+                    return ColorTheme.nav
+                }
+
+                // Reverse-match label to key using formattedLabel
+                let originalKey = data.keys.first(where: { formattedLabel(from: $0) == label }) ?? label
+                return colorForKey(originalKey)
+            }
+        }
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM"
+        return formatter.string(from: date)
+    }
+}
+
+// AI insights for selected category or subcategory
+struct AIInsightSection: View {
+    let selectedCategory: String?
+    let selectedSubcategory: String?
+    let benchmarkComparisons: [UserBenchmarkComparison]
+    let getMonthlyTrendChange: (String) -> Double? // function returning percentage change month-to-month for a key (category or subcategory)
+    let displayNames: [String: String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "lightbulb.fill")
+                    .foregroundColor(.yellow)
+                    .font(.title3)
+
+                Text(insightText())
+                    .font(.body)
+                    .foregroundColor(.primary)
+            }
+            .padding(.top)
+
+            Text(recommendationText())
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .italic()
+                .padding(.bottom)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .background(Color(.systemGray6))
+        .cornerRadius(8)
+        .padding(.horizontal, 0)
+        .padding(.vertical, 8)
+    }
+    
+    func insightText() -> String {
+        /*if let key = selectedSubcategory ?? selectedCategory {
+            if let comp = benchmarkComparisons.first(where: { $0.subcategory == key || $0.category == key }) {
+                let benchmarkDiff = comp.difference
+                let trendChangePercent = getMonthlyTrendChange(key) ?? 0
+
+                var messages = [String]()
+
+                // Benchmark overspending/underspending
+                if benchmarkDiff > 0 {
+                    messages.append("You're spending \(formattedPercent(benchmarkDiff)) more than similar households in \(displayNames[key] ?? key).")
+                } else if benchmarkDiff < 0 {
+                    messages.append("You're spending \(formattedPercent(-benchmarkDiff)) less than similar households in \(displayNames[key] ?? key).")
+                } else {
+                    messages.append("Your spending in \(displayNames[key] ?? key) aligns with similar households.")
+                }
+
+                // Trend change messages
+                if abs(trendChangePercent) >= 10 {
+                    if trendChangePercent > 0 {
+                        messages.append("Spending increased by \(formattedPercent(trendChangePercent)) compared to last month.")
+                    } else {
+                        messages.append("Spending decreased by \(formattedPercent(-trendChangePercent)) compared to last month.")
+                    }
+                }
+
+                return messages.joined(separator: " ")
+            } else {
+                return "No benchmark data available for \(displayNames[key] ?? key)."
+            }
+        } else {
+            return "Review your overall spending and compare against similar households to find savings opportunities."
+        }*/
+        return "AI insight/recommendation"
+    }
+
+    func recommendationText() -> String {
+        return "Placeholder"
+        /*if let key = selectedSubcategory ?? selectedCategory {
+            return "Consider reviewing your recent \(displayNames[key] ?? key) expenses and adjusting if necessary to optimize your budget."
+        } else {
+            return "Set spending targets and check categories with highest spending regularly."
+        }*/
+    }
+
+    private func formattedPercent(_ value: Double) -> String {
+        String(format: "%.0f%%", abs(value * 100))
     }
 }
 
@@ -567,8 +1038,6 @@ private struct InsightCard: View {
     }
 }
 
-
-// Replaces categoryBreakdownSection()
 private struct CategoryBreakdownSection: View {
     let categoryOrder: [String]
     let categorySpending: [String: Double]
@@ -576,12 +1045,40 @@ private struct CategoryBreakdownSection: View {
     let overallFrequency: String
     let formattedNumber: (Double) -> String
     @Binding var selectedCategory: String?
+    let benchmarkComparisons: [UserBenchmarkComparison]
+    let displayNames: [String: String]
+    @Binding var showBenchmarks: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Category breakdown")
-                .font(.headline)
-                .padding(.horizontal)
+            HStack {
+                Text("Category breakdown")
+                    .font(.headline)
+                
+                Spacer()
+                
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showBenchmarks.toggle()
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: showBenchmarks ? "chart.bar.fill" : "chart.bar")
+                        Text(showBenchmarks ? "Hide benchmarks" : "Show benchmarks")
+                    }
+                    .font(.caption)
+                    .foregroundColor(ColorTheme.primary)
+                }
+            }
+            .padding(.horizontal)
+            
+            // ✅ Show message if no benchmarks exist
+            if benchmarkComparisons.isEmpty {
+                Text("Benchmarks unavailable. Enter details in \"Profile\".")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+            }
             
             ForEach(categoryOrder, id: \.self) { category in
                 let categoryTotal = categorySpending[category] ?? 0
@@ -593,7 +1090,10 @@ private struct CategoryBreakdownSection: View {
                         overallFrequency: overallFrequency,
                         formattedNumber: formattedNumber,
                         selectedCategory: $selectedCategory,
-                        color: Color.categoryColors[category] ?? .gray // <-- pass color
+                        color: Color.categoryColors[category] ?? .gray,
+                        benchmarkComparisons: benchmarkComparisons,
+                        displayNames: displayNames,
+                        showBenchmarks: showBenchmarks
                     )
                 }
             }
@@ -608,7 +1108,26 @@ private struct CategoryRow: View {
     let overallFrequency: String
     let formattedNumber: (Double) -> String
     @Binding var selectedCategory: String?
-    let color: Color  // <-- New
+    let color: Color
+    let benchmarkComparisons: [UserBenchmarkComparison] // Add this
+    let displayNames: [String: String] // Add this
+    let showBenchmarks: Bool // Add this
+    
+    @State private var showTooltip = false
+    
+    private var categoryBenchmarks: [UserBenchmarkComparison] {
+        // Get benchmark data for this category's subcategories
+        let categorySubcategories = getCategorySubcategories(for: category)
+        return benchmarkComparisons.filter { categorySubcategories.contains($0.subcategory) }
+    }
+    
+    private var categoryBenchmarkTotal: Double {
+        categoryBenchmarks.reduce(0) { $0 + $1.benchmarkAmount }
+    }
+    
+    private var isAboveBenchmark: Bool {
+        categoryBenchmarkTotal > 0 && amount > categoryBenchmarkTotal
+    }
 
     var body: some View {
         Button(action: {
@@ -616,20 +1135,281 @@ private struct CategoryRow: View {
                 selectedCategory = category
             }
         }) {
+            VStack(spacing: 0) {
+                // Main category row
+                HStack {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 12, height: 12)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(category)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+
+                        let percentage = (amount / totalSpending) * 100
+                        Text("\(Int(percentage))% of spending")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("$\(formattedNumber(amount))")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+
+                        Text(overallFrequency.lowercased())
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                }
+               
+                // Benchmark comparison (when enabled)
+                if showBenchmarks {
+                    
+                    VStack(spacing: 8) {
+                        Divider()
+                            .padding(.top, 8)
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 4) {
+                                    Text("vs Australian avg")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Button(action: {
+                                        showTooltip = true
+                                    }) {
+                                        Image(systemName: "info.circle")
+                                            .resizable()
+                                            .frame(width: 14, height: 14)
+                                            .foregroundColor(ColorTheme.primary)
+                                            .padding(.leading, 2)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .sheet(isPresented: $showTooltip) {
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            Text("Understanding this chart")
+                                                .font(.title3)
+                                                .fontWeight(.semibold)
+
+                                            Text("• The colored bar shows your spending.")
+                                            Text("• The vertical line shows the Australian household median (50th percentile).")
+                                            Text("• Green = under benchmark, Red = over benchmark.")
+                                            Text("• Benchmarks are based on similar Australian households, according to your profile e.g. 80% percentile means you spend more than 80% of similar households.")
+
+                                            Spacer()
+
+                                            Button("Close") {
+                                                showTooltip = false
+                                            }
+                                            .foregroundColor(ColorTheme.primary)
+                                            .font(.headline)
+                                            .frame(maxWidth: .infinity)
+                                            .padding()
+                                        }
+                                        .padding()
+                                        .presentationDetents([.medium])
+                                    }
+                                }
+
+                                HStack(spacing: 4) {
+                                    Image(systemName: isAboveBenchmark ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
+                                        .foregroundColor(isAboveBenchmark ? .red : .green)
+                                        .font(.caption)
+                                    
+                                    Text("$\(formattedNumber(abs(amount - categoryBenchmarkTotal)))")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(isAboveBenchmark ? .red : .green)
+                                    
+                                    Text(isAboveBenchmark ? "over" : "under")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    }
+                            }
+                            
+                            Spacer()
+                            
+                            Text("$\(formattedNumber(categoryBenchmarkTotal))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        // Mini progress bar
+                        BenchmarkMiniProgressBar(
+                            userAmount: amount,
+                            benchmarkAmount: categoryBenchmarkTotal,
+                            isAboveAverage: isAboveBenchmark
+                        )
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+            }
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private func getCategorySubcategories(for category: String) -> [String] {
+        let spendingCategories: [String: [String]] = [
+            "Home": ["mortgage", "rent", "homeInsurance", "electricity", "gas", "water", "phone", "internet", "furniture", "otherHome"],
+            "Daily living": ["groceries", "restaurants", "medical", "healthInsurance", "education", "childCare", "petCare", "otherDailyLiving"],
+            "Transport": ["fuel", "servicing", "regoInsurance", "publicTransport", "otherTransport"],
+            "Entertainment & personal": ["streaming", "electronics", "concerts", "gymClubs", "clothing", "salonBeauty", "holidays", "otherPersonal"],
+            "Income": ["salary", "investment", "interest", "otherIncome"]
+        ]
+        return spendingCategories[category] ?? []
+    }
+}
+
+// MARK: - Updated SubcategoryBreakdownSection
+private struct SubcategoryBreakdownSection: View {
+    let selectedCategory: String?
+    @Binding var selectedSubcategory: String? // Add this for chart highlighting
+    let selectedDate: Date
+    let getSubcategoryData: (String) -> [DashboardView.PieChartItem]
+    let categorySpending: [String: Double]
+    let totalSpending: Double
+    let overallFrequency: String
+    let formattedNumber: (Double) -> String
+    let displayNames: [String: String]
+    let benchmarkComparisons: [UserBenchmarkComparison]
+    @Binding var showBenchmarks: Bool
+   
+    var body: some View {
+        if let selectedCategory = selectedCategory {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("\(selectedCategory) - breakdown")
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showBenchmarks.toggle()
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: showBenchmarks ? "chart.bar.fill" : "chart.bar")
+                            Text(showBenchmarks ? "Hide benchmarks" : "Show benchmarks")
+                        }
+                        .font(.caption)
+                        .foregroundColor(ColorTheme.primary)
+                    }
+                    .disabled(benchmarkComparisons.isEmpty)
+                }
+                .padding(.horizontal)
+                
+                let subcategoryData = getSubcategoryData(selectedCategory)
+                let categoryTotal = categorySpending[selectedCategory] ?? 0
+                
+                ForEach(subcategoryData.sorted(by: { $0.amount > $1.amount }), id: \.label) { item in
+                    let index = subcategoryData.firstIndex(where: { $0.label == item.label }) ?? 0
+                    let color = Color.shade(for: selectedCategory, index: index, total: subcategoryData.count)
+                    
+                    // Find the key for this subcategory
+                    let subcategoryKey = findSubcategoryKey(for: item.label)
+                    if item.amount > 0 {
+                        SubcategoryRow(
+                            label: item.label,
+                            amount: item.amount,
+                            categoryTotal: categoryTotal,
+                            totalSpending: totalSpending,
+                            overallFrequency: overallFrequency,
+                            selectedCategory: selectedCategory,
+                            selectedSubcategory: $selectedSubcategory,
+                            selectedDate: selectedDate,
+                            formattedNumber: formattedNumber,
+                            color: color,
+                            benchmarkComparisons: benchmarkComparisons,
+                            subcategoryKey: subcategoryKey,
+                            showBenchmarks: showBenchmarks
+                        )
+                    }
+                }
+            }
+        }
+    }
+    
+    private func findSubcategoryKey(for displayName: String) -> String {
+        return displayNames.first { $0.value == displayName }?.key ?? ""
+    }
+}
+
+// MARK: - Updated SubcategoryRow
+private struct SubcategoryRow: View {
+    let label: String
+    let amount: Double
+    let categoryTotal: Double
+    let totalSpending: Double
+    let overallFrequency: String
+    let selectedCategory: String
+    @Binding var selectedSubcategory: String?
+    let selectedDate: Date
+    let formattedNumber: (Double) -> String
+    let color: Color
+    let benchmarkComparisons: [UserBenchmarkComparison] // Add this
+    let subcategoryKey: String // Add this
+    let showBenchmarks: Bool // Add this
+    @State private var showTooltip = false
+    
+    private var benchmarkData: UserBenchmarkComparison? {
+        benchmarkComparisons.first { $0.subcategory == subcategoryKey }
+    }
+
+    private func frequencyMultiplier(from frequency: String) -> Double {
+            switch frequency {
+            case "Weekly": return 52
+            case "Fortnightly": return 26
+            case "Monthly": return 12
+            case "Quarterly": return 4
+            case "Annual": return 1
+            default: return 1
+            }
+        }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Main subcategory row
             HStack {
                 Circle()
                     .fill(color)
-                    .frame(width: 12, height: 12)  // Color dot
+                    .frame(width: 12, height: 12)
+                
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(category)
+                    Text(label)
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
 
-                    let percentage = (amount / totalSpending) * 100
-                    Text("\(Int(percentage))% of spending")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        let categoryPercentage = categoryTotal > 0 ? (amount / categoryTotal) * 100 : 0
+                        let totalPercentage = totalSpending > 0 ? (amount / totalSpending) * 100 : 0
+
+                        Text("\(String(format: "%.1f", categoryPercentage))% of \(selectedCategory)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Text("•")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Text("\(String(format: "%.1f", totalPercentage))% of total")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
 
                 Spacer()
@@ -644,116 +1424,151 @@ private struct CategoryRow: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
-
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
-                    .font(.caption)
             }
-            .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(8)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
+            
+            // Benchmark comparison (when enabled)
+            if showBenchmarks, let benchmark = benchmarkData {
+                VStack(spacing: 8) {
+                    Divider()
+                        .padding(.top, 8)
+                    
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 4) {
+                                Text("vs Australian avg")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
 
-// Replaces subcategoryBreakdownSection()
-private struct SubcategoryBreakdownSection: View {
-    let selectedCategory: String?
-    let getSubcategoryData: (String) -> [DashboardView.PieChartItem]
-    let categorySpending: [String: Double]
-    let totalSpending: Double
-    let overallFrequency: String
-    let formattedNumber: (Double) -> String
-    let displayNames: [String: String]
-   
-    var body: some View {
-        if let selectedCategory = selectedCategory { // <--- CHANGE IS HERE
-            VStack(alignment: .leading, spacing: 12) {
-                Text("\(selectedCategory) - breakdown")
-                    .font(.headline)
-                    .padding(.horizontal)
-                
-                let subcategoryData = getSubcategoryData(selectedCategory)
-                let categoryTotal = categorySpending[selectedCategory] ?? 0
-                
-                ForEach(subcategoryData.sorted(by: { $0.amount > $1.amount }), id: \.label) { item in
-                    let index = subcategoryData.firstIndex(where: { $0.label == item.label }) ?? 0
-                    let color = Color.shade(for: selectedCategory, index: index, total: subcategoryData.count)
+                                Button(action: {
+                                    showTooltip = true
+                                }) {
+                                    Image(systemName: "info.circle")
+                                        .resizable()
+                                        .frame(width: 14, height: 14)
+                                        .foregroundColor(ColorTheme.primary)
+                                        .padding(.leading, 2)
+                                }
+                                .buttonStyle(.plain)
+                                .sheet(isPresented: $showTooltip) {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("Understanding this chart")
+                                            .font(.title3)
+                                            .fontWeight(.semibold)
 
-                    if item.amount > 0 { // This inner if is fine, it means it returns EmptyView implicitly if condition is false
-                        SubcategoryRow(
-                            label: item.label,
-                            amount: item.amount,
-                            categoryTotal: categoryTotal,
-                            totalSpending: totalSpending,
-                            overallFrequency: overallFrequency,
-                            selectedCategory: selectedCategory,
-                            formattedNumber: formattedNumber,
-                            color: color // <-- pass shade color
-                        )
+                                        Text("• The colored bar shows your spending.")
+                                        Text("• The vertical line shows the Australian household median (50th percentile).")
+                                        Text("• Green = under benchmark, Red = over benchmark.")
+                                        Text("• Benchmarks are based on similar Australian households, according to your profile e.g. 80% percentile means you spend more than 80% of similar households.")
+
+                                        Spacer()
+
+                                        Button("Close") {
+                                            showTooltip = false
+                                        }
+                                        .foregroundColor(ColorTheme.primary)
+                                        .font(.headline)
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                    }
+                                    .padding()
+                                    .presentationDetents([.medium])
+                                }
+                            }
+                            
+                            HStack(spacing: 4) {
+                                Image(systemName: benchmark.isAboveAverage ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
+                                    .foregroundColor(benchmark.isAboveAverage ? .red : .green)
+                                    .font(.caption)
+                                
+                                Text("$\(formattedNumber(abs(amount - benchmark.benchmarkAmount)))")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(benchmark.isAboveAverage ? .red : .green)
+                                
+                                Text(benchmark.isAboveAverage ? "over" : "under")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("$\(formattedNumber(benchmark.benchmarkAmount))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            if let percentile = benchmark.percentile {
+                                Text("\(percentile)th percentile")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
+                    
+                    // Mini progress bar
+                    BenchmarkMiniProgressBar(
+                        userAmount: amount,
+                        benchmarkAmount: benchmark.benchmarkAmount,
+                        isAboveAverage: benchmark.isAboveAverage
+                    )
                 }
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
-    }
-}
-
-private struct SubcategoryRow: View {
-    let label: String
-    let amount: Double
-    let categoryTotal: Double
-    let totalSpending: Double
-    let overallFrequency: String
-    let selectedCategory: String
-    let formattedNumber: (Double) -> String
-    let color: Color  // <-- New
-
-    var body: some View {
-        HStack {
-            Circle()
-                .fill(color)
-                .frame(width: 12, height: 12)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(label)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-
-                HStack(spacing: 8) {
-                    let categoryPercentage = categoryTotal > 0 ? (amount / categoryTotal) * 100 : 0
-                    let totalPercentage = totalSpending > 0 ? (amount / totalSpending) * 100 : 0
-
-                    Text("\(String(format: "%.1f", categoryPercentage))% of \(selectedCategory)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Text("•")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Text("\(String(format: "%.1f", totalPercentage))% of total")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("$\(formattedNumber(amount))")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-
-                Text(overallFrequency.lowercased())
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
+        .onTapGesture {
+            selectedSubcategory = subcategoryKey
         }
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(8)
+    }
+}
+
+// MARK: - New BenchmarkMiniProgressBar component
+private struct BenchmarkMiniProgressBar: View {
+    let userAmount: Double
+    let benchmarkAmount: Double
+    let isAboveAverage: Bool
+    
+    private var maxAmount: Double {
+        max(userAmount, benchmarkAmount) * 1.1
+    }
+    
+    private var userProgress: Double {
+        maxAmount > 0 ? userAmount / maxAmount : 0
+    }
+    
+    private var benchmarkProgress: Double {
+        maxAmount > 0 ? benchmarkAmount / maxAmount : 0
+    }
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                // Background track
+                Rectangle()
+                    .fill(Color(.systemGray5))
+                    .frame(height: 4)
+                    .cornerRadius(2)
+                
+                // Benchmark indicator line
+                Rectangle()
+                    .fill(Color(.systemGray3))
+                    .frame(width: 1, height: 8)
+                    .offset(x: benchmarkProgress * geometry.size.width - 0.5)
+                
+                // User progress bar
+                Rectangle()
+                    .fill(isAboveAverage ?
+                          LinearGradient(colors: [.orange, .red], startPoint: .leading, endPoint: .trailing) :
+                          LinearGradient(colors: [.green, .mint], startPoint: .leading, endPoint: .trailing))
+                    .frame(width: userProgress * geometry.size.width, height: 4)
+                    .cornerRadius(2)
+                    .animation(.easeInOut(duration: 0.5), value: userProgress)
+            }
+        }
+        .frame(height: 8)
     }
 }
 
@@ -805,14 +1620,14 @@ struct InsightsView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Financial insights")
+            .navigationTitle("Smart insights")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
-                    .foregroundColor(.primary)
+                    .foregroundColor(ColorTheme.primary)
                 }
             }
         }
@@ -887,9 +1702,9 @@ struct InsightsView: View {
     private func formattedNumber(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
     }
 }
 
@@ -996,9 +1811,9 @@ private struct SpendingTrendsSection: View {
     private func formattedNumber(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
     }
 }
 
@@ -1033,9 +1848,9 @@ private struct SpendingCategoryInsight: View {
     private func formattedNumber(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
     }
 }
 

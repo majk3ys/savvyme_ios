@@ -109,24 +109,37 @@ struct UserProfileView: View {
     // MARK: - Helper Functions
     var personalInfoSection: some View {
         Section(header: Text("Personal Information")) {
-            HStack {
-                Text("Age")
-                Spacer()
-                TextField("Enter age", text: $age)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                    .onChange(of: age) { _ in validateForm() }
+            Menu {
+                Picker("Age", selection: $age) {
+                    ForEach(15...110, id: \.self) { count in
+                        Text("\(count)").tag("\(count)")
+                    }
+                }
+            } label: {
+                HStack {
+                    Text("Age")
+                    Spacer()
+                    Text("\(age)")
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(.nav)
             }
+            .onChange(of: age) { _ in validateForm() }
 
-            HStack {
-                Text("State/Territory")
-                Spacer()
-                Picker("", selection: $selectedState) {
+            Menu {
+                Picker("State/Territory", selection: $selectedState) {
                     ForEach(australianStates, id: \.self) { state in
                         Text(state).tag(state)
                     }
                 }
-                .pickerStyle(MenuPickerStyle())
+            } label: {
+                HStack {
+                    Text("State")
+                    Spacer()
+                    Text(selectedState)
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(.nav)
             }
 
             HStack {
@@ -153,23 +166,39 @@ struct UserProfileView: View {
                 .pickerStyle(SegmentedPickerStyle())
             }
 
-            HStack {
-                Text("Adults (15+ years)")
-                Spacer()
-                TextField("Number of adults", text: $adultsCount)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                    .onChange(of: adultsCount) { _ in validateForm() }
+            Menu {
+                Picker("Adults (15+ years)", selection: $adultsCount) {
+                    ForEach(1...10, id: \.self) { count in
+                        Text("\(count)").tag("\(count)")
+                    }
+                }
+            } label: {
+                HStack {
+                    Text("Adults (15+ years)")
+                    Spacer()
+                    Text("\(adultsCount)")
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(.nav)
             }
-
-            HStack {
-                Text("Children (under 15)")
-                Spacer()
-                TextField("Number of children", text: $childrenCount)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                    .onChange(of: childrenCount) { _ in validateForm() }
+            .onChange(of: adultsCount) { _ in validateForm() }
+            
+            Menu {
+                Picker("Children (under 15)", selection: $childrenCount) {
+                    ForEach(0...20, id: \.self) { count in
+                        Text("\(count)").tag("\(count)")
+                    }
+                }
+            } label: {
+                HStack {
+                    Text("Children (under 15)")
+                    Spacer()
+                    Text("\(childrenCount)")
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(.nav)
             }
+            .onChange(of: childrenCount) { _ in validateForm() }
         }
     }
 
@@ -204,7 +233,8 @@ struct UserProfileView: View {
         UserDefaults.standard.set(adultsCount, forKey: "user_adults_count")
         UserDefaults.standard.set(childrenCount, forKey: "user_children_count")
         UserDefaults.standard.set(selectedIncomeRange, forKey: "user_income_range")
-        
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "profile_last_updated")
+
         showingSaveAlert = true
         
         // Haptic feedback

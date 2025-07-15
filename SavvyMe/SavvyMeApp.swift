@@ -17,17 +17,17 @@ struct SavvyMeApp: App {
             Group {
                 if appState.isAuthenticated {
                     MainTabView()
+                        .preferredColorScheme(appState.currentColorScheme)
                 } else {
                     AuthenticationView()
+                        // Login page uses system default (no override)
                 }
             }
             .environmentObject(appState)
-            .preferredColorScheme(appState.useDarkMode ? .dark : .light)
         }
         .modelContainer(for: TransactionItem.self)
     }
 }
-
 
 struct ColorTheme {
     static let primary = Color("MainColor")
@@ -38,13 +38,14 @@ struct ColorTheme {
 }
 
 struct ColorSchemeToggleButton: View {
+    @Environment(\.colorScheme) var systemColorScheme
     @EnvironmentObject var appState: AppState
 
     var body: some View {
         Button(action: {
-            appState.useDarkMode.toggle()
+            appState.toggleColorScheme()
         }) {
-            Image(systemName: appState.useDarkMode ? "sun.max.fill" : "moon.fill")
+            Image(systemName: appState.currentColorScheme == .dark ? "sun.max.fill" : "moon.fill")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 18, height: 18)
@@ -55,5 +56,9 @@ struct ColorSchemeToggleButton: View {
                 .shadow(radius: 1)
         }
         .accessibilityLabel("Toggle light/dark mode")
+        .onAppear {
+            // Initialize with system setting when first shown after login
+            appState.initializeColorScheme(systemColorScheme: systemColorScheme)
+        }
     }
 }

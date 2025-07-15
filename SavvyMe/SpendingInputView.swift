@@ -1,13 +1,17 @@
 import SwiftUI
 import SwiftData
+import Foundation
 
 struct SpendingInputView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allItems: [TransactionItem]
     @Binding var overallFrequency: String
+    @Binding var selectedMonth: Int
+    @Binding var selectedYear: Int
     @State private var selectedCategory: String? = nil
     @State private var searchText = ""
     @State private var selectedSegment = 0 // 0 for Spending, 1 for Income
+    @State private var showingDatePicker = false
     
     // Category structure matching your DashboardView
     private let spendingCategoryOrder = ["Home", "Daily living", "Transport", "Entertainment & personal"]
@@ -85,9 +89,26 @@ struct SpendingInputView: View {
         selectedSegment == 0 ? spendingDisplayNames : incomeDisplayNames
     }
     
+    // Get items for the selected month/year
+    var filteredItems: [TransactionItem] {
+        allItems.filter { item in
+            let itemDate = item.date ?? Date()
+            let itemMonth = Calendar.current.component(.month, from: itemDate)
+            let itemYear = Calendar.current.component(.year, from: itemDate)
+            return itemMonth == selectedMonth && itemYear == selectedYear
+        }
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
+                // Time selector
+                TimeSelectionHeader(
+                    selectedMonth: $selectedMonth,
+                    selectedYear: $selectedYear,
+                    showingDatePicker: $showingDatePicker
+                )
+                
                 // Segment control for Income/Spending
                 Picker("Type", selection: $selectedSegment) {
                     Text("Spending").tag(0)
@@ -113,7 +134,7 @@ struct SpendingInputView: View {
                                     category: category,
                                     subcategories: currentCategories[category] ?? [],
                                     displayNames: currentDisplayNames,
-                                    allItems: allItems,
+                                    allItems: filteredItems,
                                     overallFrequency: overallFrequency,
                                     onUpdateItem: updateItem,
                                     isIncome: selectedSegment == 1
@@ -125,7 +146,7 @@ struct SpendingInputView: View {
                                 searchText: searchText,
                                 allCategories: currentCategories,
                                 displayNames: currentDisplayNames,
-                                allItems: allItems,
+                                allItems: filteredItems,
                                 overallFrequency: overallFrequency,
                                 onUpdateItem: updateItem,
                                 isIncome: selectedSegment == 1
@@ -149,6 +170,13 @@ struct SpendingInputView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showingDatePicker) {
+                DatePickerSheet(
+                    selectedMonth: $selectedMonth,
+                    selectedYear: $selectedYear,
+                    isPresented: $showingDatePicker
+                )
+            }
         }
     }
     
@@ -167,16 +195,26 @@ struct SpendingInputView: View {
     private func updateItem(name: String, amount: Double, frequency: String) {
         let itemType = selectedSegment == 0 ? "spending" : "income"
         
-        if let existingItem = allItems.first(where: { $0.name == name }) {
+        // Create date for the selected month/year
+        var dateComponents = DateComponents()
+        dateComponents.year = selectedYear
+        dateComponents.month = selectedMonth
+        dateComponents.day = 1
+        let selectedDate = Calendar.current.date(from: dateComponents) ?? Date()
+        
+        // Check if item exists for this specific month/year
+        if let existingItem = filteredItems.first(where: { $0.name == name }) {
             existingItem.amount = amount
             existingItem.frequency = frequency
             existingItem.type = itemType
+            existingItem.date = selectedDate
         } else {
             let newItem = TransactionItem(
                 name: name,
                 amount: amount,
                 frequency: frequency,
-                type: itemType
+                type: itemType,
+                date: selectedDate
             )
             modelContext.insert(newItem)
         }
@@ -189,11 +227,11 @@ struct SpendingInputView: View {
     }
     
     private func getCurrentValue(for name: String) -> Double {
-        return allItems.first(where: { $0.name == name })?.amount ?? 0
+        return filteredItems.first(where: { $0.name == name })?.amount ?? 0
     }
     
     private func getCurrentFrequency(for name: String) -> String {
-        return allItems.first(where: { $0.name == name })?.frequency ?? overallFrequency
+        return filteredItems.first(where: { $0.name == name })?.frequency ?? overallFrequency
     }
     
     private func getCategoryTotal(for category: String) -> Double {
@@ -203,8 +241,8 @@ struct SpendingInputView: View {
         }
     }
 }
-
-// MARK: - Sub Views
+  
+// MARK: - Sub Views (Updated to use filteredItems)
 
 private struct HeaderSection: View {
     @Binding var overallFrequency: String
@@ -213,7 +251,6 @@ private struct HeaderSection: View {
         HStack {
             Text("Select frequency:")
                 .font(.subheadline)
-                .foregroundColor(.primary)
             
             Spacer()
             
@@ -351,9 +388,9 @@ private struct CategoryCard: View {
     private func formattedNumber(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
     }
     
     private func convertToOverallFrequency(for name: String) -> Double {
@@ -363,7 +400,6 @@ private struct CategoryCard: View {
         let toMultiplier = SpendingInputView.frequencyMultiplier(from: overallFrequency)
         return base * fromMultiplier / toMultiplier
     }
-
 }
 
 // MARK: - Category Detail View
@@ -491,9 +527,9 @@ struct CategoryDetailView: View {
     private func formattedNumber(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
     }
     
     private func convertToOverallFrequency(for name: String) -> Double {
@@ -535,7 +571,7 @@ private struct ExpenseInputRow: View {
                 HStack(spacing: 4) {
                     Text("$")
                         .foregroundColor(.secondary)
-                    TextField("0.00", text: $amountText)
+                    TextField("0", text: $amountText)
                         .keyboardType(.decimalPad)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .frame(width: 80)
@@ -579,7 +615,7 @@ private struct ExpenseInputRow: View {
         .background(Color(.systemGray6))
         .cornerRadius(8)
         .onAppear {
-            amountText = currentValue > 0 ? String(format: "%.2f", currentValue) : ""
+            amountText = currentValue > 0 ? String(format: "%.0f", currentValue) : ""
             selectedFrequency = currentFrequency
         }
         .onTapGesture {

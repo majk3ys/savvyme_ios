@@ -167,7 +167,7 @@ class BenchmarkDataManager: ObservableObject {
         for (userCategory, subcategories) in categoryMapping {
             for subcategory in subcategories {
                 guard let userAmount = userSpending[subcategory], userAmount > 0 else { continue }
-                
+                 
                 // Convert user amount to weekly for comparison
                 let userWeeklyAmount = convertToWeekly(userAmount, frequency: overallFrequency)
                 
@@ -270,7 +270,6 @@ class BenchmarkDataManager: ObservableObject {
         incomeRange: String,
         subcategory: String
     ) -> BenchmarkData? {
-        
         // First try exact match
         var matches = benchmarkData.filter {
             $0.state == state &&
@@ -279,7 +278,7 @@ class BenchmarkDataManager: ObservableObject {
             $0.disposableIncome == incomeRange &&
             $0.expenseSubcategory == subcategory
         }
-        
+                
         if matches.isEmpty {
             // Try without state constraint
             matches = benchmarkData.filter {
@@ -308,7 +307,7 @@ class BenchmarkDataManager: ObservableObject {
         benchmark: BenchmarkData
     ) -> UserBenchmarkComparison {
         
-        let benchmarkAmount = benchmark.p50 // Use median as benchmark
+        let benchmarkAmount = benchmark.weeklyHouseholdSpend // Use average as benchmark
         let difference = userWeeklyAmount - benchmarkAmount
         let percentageDifference = benchmarkAmount > 0 ? (difference / benchmarkAmount) * 100 : 0
         let isAboveAverage = userWeeklyAmount > benchmarkAmount

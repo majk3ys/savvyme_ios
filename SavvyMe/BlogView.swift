@@ -416,7 +416,7 @@ struct BlogPostDetailView: View {
                     Button("Done") {
                         presentationMode.wrappedValue.dismiss()
                     }
-                    .foregroundColor(.primary)
+                    .foregroundColor(ColorTheme.primary)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -426,7 +426,7 @@ struct BlogPostDetailView: View {
                         Label("Share", systemImage: "square.and.arrow.up")
                     }
                     .padding()
-                    .foregroundColor(.primary)
+                    .tint(ColorTheme.primary)
                 }
             }
             .onAppear {
