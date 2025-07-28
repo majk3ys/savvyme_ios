@@ -89,12 +89,13 @@ struct SpendingInputView: View {
         selectedSegment == 0 ? spendingDisplayNames : incomeDisplayNames
     }
     
-    // Get items for the selected month/year
-    var filteredItems: [TransactionItem] {
-        allItems.filter { item in
+    // Get items for the selected month/year - make it more efficient
+    private var filteredItems: [TransactionItem] {
+        let calendar = Calendar.current
+        return allItems.filter { item in
             let itemDate = item.date ?? Date()
-            let itemMonth = Calendar.current.component(.month, from: itemDate)
-            let itemYear = Calendar.current.component(.year, from: itemDate)
+            let itemMonth = calendar.component(.month, from: itemDate)
+            let itemYear = calendar.component(.year, from: itemDate)
             return itemMonth == selectedMonth && itemYear == selectedYear
         }
     }
@@ -102,13 +103,6 @@ struct SpendingInputView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Time selector
-                TimeSelectionHeader(
-                    selectedMonth: $selectedMonth,
-                    selectedYear: $selectedYear,
-                    showingDatePicker: $showingDatePicker
-                )
-                
                 // Segment control for Income/Spending
                 Picker("Type", selection: $selectedSegment) {
                     Text("Spending").tag(0)
@@ -117,6 +111,13 @@ struct SpendingInputView: View {
                 .pickerStyle(SegmentedPickerStyle())
                 .padding()
                 .background(Color(.systemGray6))
+                
+                // Time selector - positioned after the main header
+                TimeSelectionHeader(
+                    selectedMonth: $selectedMonth,
+                    selectedYear: $selectedYear,
+                    showingDatePicker: $showingDatePicker
+                )
                 
                 // Header with frequency selector
                 HeaderSection(overallFrequency: $overallFrequency)
@@ -137,7 +138,10 @@ struct SpendingInputView: View {
                                     allItems: filteredItems,
                                     overallFrequency: overallFrequency,
                                     onUpdateItem: updateItem,
-                                    isIncome: selectedSegment == 1
+                                    isIncome: selectedSegment == 1,
+                                    selectedMonth: $selectedMonth,
+                                    selectedYear: $selectedYear,
+                                    showingDatePicker: $showingDatePicker
                                 )
                             }
                         } else {
@@ -170,13 +174,13 @@ struct SpendingInputView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingDatePicker) {
-                DatePickerSheet(
-                    selectedMonth: $selectedMonth,
-                    selectedYear: $selectedYear,
-                    isPresented: $showingDatePicker
-                )
-            }
+        }
+        .sheet(isPresented: $showingDatePicker) {
+            DatePickerSheet(
+                selectedMonth: $selectedMonth,
+                selectedYear: $selectedYear,
+                isPresented: $showingDatePicker
+            )
         }
     }
     
@@ -192,8 +196,10 @@ struct SpendingInputView: View {
         }
     }
 
-    private func updateItem(name: String, amount: Double, frequency: String) {
+    private func updateItem(name: String, amount: Double) {
         let itemType = selectedSegment == 0 ? "spending" : "income"
+        // Always use "Monthly" as the frequency
+        let frequency = "Monthly"
         
         // Create date for the selected month/year
         var dateComponents = DateComponents()
@@ -231,7 +237,8 @@ struct SpendingInputView: View {
     }
     
     private func getCurrentFrequency(for name: String) -> String {
-        return filteredItems.first(where: { $0.name == name })?.frequency ?? overallFrequency
+        // Always return "Monthly"
+        return "Monthly"
     }
     
     private func getCategoryTotal(for category: String) -> Double {
@@ -241,15 +248,15 @@ struct SpendingInputView: View {
         }
     }
 }
-  
-// MARK: - Sub Views (Updated to use filteredItems)
+
+// MARK: - Sub Views
 
 private struct HeaderSection: View {
     @Binding var overallFrequency: String
     
     var body: some View {
         HStack {
-            Text("Select frequency:")
+            Text("View frequency:")
                 .font(.subheadline)
             
             Spacer()
@@ -307,8 +314,11 @@ private struct CategoryCard: View {
     let displayNames: [String: String]
     let allItems: [TransactionItem]
     let overallFrequency: String
-    let onUpdateItem: (String, Double, String) -> Void
+    let onUpdateItem: (String, Double) -> Void
     let isIncome: Bool
+    @Binding var selectedMonth: Int
+    @Binding var selectedYear: Int
+    @Binding var showingDatePicker: Bool
     
     var body: some View {
         NavigationLink(destination: CategoryDetailView(
@@ -318,13 +328,18 @@ private struct CategoryCard: View {
             allItems: allItems,
             overallFrequency: overallFrequency,
             onUpdateItem: onUpdateItem,
-            isIncome: isIncome
-        )) {
+            isIncome: isIncome,
+            selectedMonth: $selectedMonth,
+            selectedYear: $selectedYear,
+            showingDatePicker: $showingDatePicker
+        ).onAppear {
+            print("Navigating to category: \(category)")
+        }) {
             VStack(spacing: 0) {
                 HStack {
                     // Category color dot
                     Circle()
-                        .fill(Color.categoryColors[category] ?? .gray)
+                        .fill(getCategoryColor())
                         .frame(width: 16, height: 16)
                     
                     VStack(alignment: .leading, spacing: 4) {
@@ -371,6 +386,18 @@ private struct CategoryCard: View {
         .buttonStyle(PlainButtonStyle())
     }
     
+    private func getCategoryColor() -> Color {
+        // Fallback colors in case Color.categoryColors is not available
+        switch category {
+        case "Home": return .blue
+        case "Daily living": return .green
+        case "Transport": return .orange
+        case "Entertainment & personal": return .purple
+        case "Income": return .mint
+        default: return .gray
+        }
+    }
+    
     private func getCategoryTotal() -> Double {
         return subcategories.reduce(0) { total, subcategory in
             total + convertToOverallFrequency(for: subcategory)
@@ -396,7 +423,8 @@ private struct CategoryCard: View {
     private func convertToOverallFrequency(for name: String) -> Double {
         guard let item = allItems.first(where: { $0.name == name }) else { return 0 }
         let base = item.amount
-        let fromMultiplier = SpendingInputView.frequencyMultiplier(from: item.frequency)
+        // Since all items are now stored as Monthly, convert from Monthly to the overallFrequency
+        let fromMultiplier = SpendingInputView.frequencyMultiplier(from: "Monthly")
         let toMultiplier = SpendingInputView.frequencyMultiplier(from: overallFrequency)
         return base * fromMultiplier / toMultiplier
     }
@@ -410,8 +438,11 @@ struct CategoryDetailView: View {
     let displayNames: [String: String]
     let allItems: [TransactionItem]
     let overallFrequency: String
-    let onUpdateItem: (String, Double, String) -> Void
+    let onUpdateItem: (String, Double) -> Void
     let isIncome: Bool
+    @Binding var selectedMonth: Int
+    @Binding var selectedYear: Int
+    @Binding var showingDatePicker: Bool
     
     @State private var searchText = ""
     @Environment(\.presentationMode) var presentationMode
@@ -429,11 +460,11 @@ struct CategoryDetailView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header with total
+            // Header with total - positioned after category name
             VStack(spacing: 8) {
                 HStack {
                     Circle()
-                        .fill(Color.categoryColors[category] ?? .gray)
+                        .fill(getCategoryColor())
                         .frame(width: 20, height: 20)
                     
                     Text(category)
@@ -460,6 +491,13 @@ struct CategoryDetailView: View {
             .padding()
             .background(Color(.systemGray6))
             
+            // Time selector - positioned after the category header
+            TimeSelectionHeader(
+                selectedMonth: $selectedMonth,
+                selectedYear: $selectedYear,
+                showingDatePicker: $showingDatePicker
+            )
+            
             // Search bar
             SearchBar(searchText: $searchText)
             
@@ -471,8 +509,6 @@ struct CategoryDetailView: View {
                             name: subcategory,
                             displayName: displayNames[subcategory] ?? subcategory,
                             currentValue: getCurrentValue(for: subcategory),
-                            currentFrequency: getCurrentFrequency(for: subcategory),
-                            defaultFrequency: overallFrequency,
                             onUpdateItem: onUpdateItem
                         )
                     }
@@ -504,6 +540,24 @@ struct CategoryDetailView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingDatePicker) {
+            DatePickerSheet(
+                selectedMonth: $selectedMonth,
+                selectedYear: $selectedYear,
+                isPresented: $showingDatePicker
+            )
+        }
+    }
+    
+    private func getCategoryColor() -> Color {
+        switch category {
+        case "Home": return .blue
+        case "Daily living": return .green
+        case "Transport": return .orange
+        case "Entertainment & personal": return .purple
+        case "Income": return .mint
+        default: return .gray
+        }
     }
     
     private func getCategoryTotal() -> Double {
@@ -514,10 +568,6 @@ struct CategoryDetailView: View {
     
     private func getCurrentValue(for name: String) -> Double {
         return allItems.first(where: { $0.name == name })?.amount ?? 0
-    }
-    
-    private func getCurrentFrequency(for name: String) -> String {
-        return allItems.first(where: { $0.name == name })?.frequency ?? overallFrequency
     }
     
     private func getActiveItemCount() -> Int {
@@ -535,7 +585,8 @@ struct CategoryDetailView: View {
     private func convertToOverallFrequency(for name: String) -> Double {
         guard let item = allItems.first(where: { $0.name == name }) else { return 0 }
         let base = item.amount
-        let fromMultiplier = SpendingInputView.frequencyMultiplier(from: item.frequency)
+        // Since all items are now stored as Monthly, convert from Monthly to the overallFrequency
+        let fromMultiplier = SpendingInputView.frequencyMultiplier(from: "Monthly")
         let toMultiplier = SpendingInputView.frequencyMultiplier(from: overallFrequency)
         return base * fromMultiplier / toMultiplier
     }
@@ -545,69 +596,45 @@ private struct ExpenseInputRow: View {
     let name: String
     let displayName: String
     let currentValue: Double
-    let currentFrequency: String
-    let defaultFrequency: String
-    let onUpdateItem: (String, Double, String) -> Void
+    let onUpdateItem: (String, Double) -> Void
     
     @State private var amountText: String = ""
-    @State private var selectedFrequency: String = ""
     @FocusState private var isAmountFocused: Bool
     
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 12) {
-                // Expense name
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(displayName)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 12) {
+            // Expense name
+            VStack(alignment: .leading, spacing: 2) {
+                Text(displayName)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 
-                // Amount input
-                HStack(spacing: 4) {
-                    Text("$")
-                        .foregroundColor(.secondary)
-                    TextField("0", text: $amountText)
-                        .keyboardType(.decimalPad)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .frame(width: 80)
-                        .focused($isAmountFocused)
-                        .onChange(of: amountText) { _, newValue in
-                            // Allow only valid decimal input
-                            let filtered = newValue.filter { "0123456789.".contains($0) }
-                            if filtered != newValue {
-                                amountText = filtered
-                            }
-                            saveValue()
-                        }
-                }
+                Text("per month")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             
-            // Frequency picker (full width, smaller font)
-            HStack {
-                Spacer()
-                
-                Menu {
-                    ForEach(["Weekly", "Fortnightly", "Monthly", "Quarterly", "Annual"], id: \.self) { freq in
-                        Button(action: {
-                            selectedFrequency = freq
-                            saveValue()
-                        }) {
-                            Text(freq)
-                                .font(.subheadline)
+            // Amount input
+            HStack(spacing: 4) {
+                Text("$")
+                    .foregroundColor(.secondary)
+                TextField("0", text: $amountText)
+                    .keyboardType(.decimalPad)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .frame(width: 80)
+                    .focused($isAmountFocused)
+                    .onChange(of: amountText) { _, newValue in
+                        // Allow only valid decimal input
+                        let filtered = newValue.filter { "0123456789.".contains($0) }
+                        if filtered != newValue {
+                            amountText = filtered
                         }
+                        saveValue()
                     }
-                } label: {
-                    HStack {
-                        Text("\(selectedFrequency)")
-                            .font(.subheadline)
-                        Image(systemName: "chevron.down")
-                    }
-                }
             }
         }
         .padding(.vertical, 12)
@@ -615,8 +642,10 @@ private struct ExpenseInputRow: View {
         .background(Color(.systemGray6))
         .cornerRadius(8)
         .onAppear {
-            amountText = currentValue > 0 ? String(format: "%.0f", currentValue) : ""
-            selectedFrequency = currentFrequency
+            updateValues()
+        }
+        .onChange(of: currentValue) { _, _ in
+            updateValues()
         }
         .onTapGesture {
             if !isAmountFocused {
@@ -625,9 +654,13 @@ private struct ExpenseInputRow: View {
         }
     }
     
+    private func updateValues() {
+        amountText = currentValue > 0 ? String(format: "%.0f", currentValue) : ""
+    }
+    
     private func saveValue() {
         let amount = Double(amountText) ?? 0
-        onUpdateItem(name, amount, selectedFrequency)
+        onUpdateItem(name, amount)
     }
 }
 
@@ -637,7 +670,7 @@ private struct SearchResultsSection: View {
     let displayNames: [String: String]
     let allItems: [TransactionItem]
     let overallFrequency: String
-    let onUpdateItem: (String, Double, String) -> Void
+    let onUpdateItem: (String, Double) -> Void
     let isIncome: Bool
     
     var filteredItems: [(String, String, String)] { // (name, displayName, category)
@@ -679,7 +712,7 @@ private struct SearchResultsSection: View {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Circle()
-                                .fill(Color.categoryColors[item.2] ?? .gray)
+                                .fill(getCategoryColor(for: item.2))
                                 .frame(width: 8, height: 8)
                             Text(item.2)
                                 .font(.caption)
@@ -690,8 +723,6 @@ private struct SearchResultsSection: View {
                             name: item.0,
                             displayName: item.1,
                             currentValue: getCurrentValue(for: item.0),
-                            currentFrequency: getCurrentFrequency(for: item.0),
-                            defaultFrequency: overallFrequency,
                             onUpdateItem: onUpdateItem
                         )
                     }
@@ -700,11 +731,18 @@ private struct SearchResultsSection: View {
         }
     }
     
-    private func getCurrentValue(for name: String) -> Double {
-        return allItems.first(where: { $0.name == name })?.amount ?? 0
+    private func getCategoryColor(for category: String) -> Color {
+        switch category {
+        case "Home": return .blue
+        case "Daily living": return .green
+        case "Transport": return .orange
+        case "Entertainment & personal": return .purple
+        case "Income": return .mint
+        default: return .gray
+        }
     }
     
-    private func getCurrentFrequency(for name: String) -> String {
-        return allItems.first(where: { $0.name == name })?.frequency ?? overallFrequency
+    private func getCurrentValue(for name: String) -> Double {
+        return allItems.first(where: { $0.name == name })?.amount ?? 0
     }
 }

@@ -71,13 +71,6 @@ extension Color {
     }
 }
 
-// MARK: - Extensions
-extension View {
-    func hideKeyboard() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
-}
-
 
 // MARK: - Time Selection Header
 struct TimeSelectionHeader: View {
@@ -292,5 +285,12 @@ struct DatePickerSheet: View {
         }
         .presentationDetents([.fraction(0.65), .large])
         .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - Helper Extension
+extension View {
+    func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
