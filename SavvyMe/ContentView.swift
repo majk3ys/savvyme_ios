@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import SwiftData
+import UserNotifications
 
 struct MainTabView: View {
     @EnvironmentObject var appState: AppState
@@ -14,6 +16,10 @@ struct MainTabView: View {
     @State private var overallFrequency: String = "Annual"
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
+    
+    @Environment(\.modelContext) private var modelContext
+    @Query private var allTransactions: [TransactionItem]
+    @Query private var allGoals: [Goal]
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -36,6 +42,12 @@ struct MainTabView: View {
                         Label("Dashboard", systemImage: "chart.bar")
                     }
 
+                GoalsView(
+                )
+                    .tabItem {
+                        Label("Goals", systemImage: "target")
+                    }
+
                 BlogView()
                     .tabItem {
                         Label("Blog", systemImage: "book")
@@ -47,11 +59,164 @@ struct MainTabView: View {
                     }
             }
             .accentColor(ColorTheme.primary)
+            // ✅ Run notification checks once when the TabView appears
+            .onAppear {
+                runNotificationChecks()
+            }
 
             ColorSchemeToggleButton()
                 .padding(.top, 50)
                 .padding(.trailing, 12)
+            
+            #if DEBUG
+            Button("Run Notification Test") {
+                runNotificationTest()
+            }
+            .padding()
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(8)
+            #endif
+
         }
+    }
+    
+    func sendTestNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Test Notification"
+        content.body = "This is a random test message!"
+        content.sound = .default
+        
+        // Trigger after 5 seconds
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: trigger
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to schedule notification: \(error)")
+            } else {
+                print("✅ Test notification scheduled")
+            }
+        }
+    }
+    
+    
+    
+    // MARK: - Debug Notification Tester
+    private func runNotificationTest() {
+        // Use actual transactions if you want realistic testing
+        let transactions = allTransactions
+        let goals = [
+                Goal(
+                    name: "Car test goal",
+                    targetAmount: 2000,
+                    currentAmount: 200,
+                    category: "Car purchase",
+                    deadline: Calendar.current.date(byAdding: .day, value: 7, to: Date())!
+                )
+            ]
+
+        let budgets = computeBudgets(transactions: transactions)
+        let benchmarks = fetchBenchmarks()
+
+        // Call your NotificationManager
+        NotificationManager.shared.checkRules(
+            transactions: transactions,
+            goals: goals,
+            budgets: budgets,
+            benchmarks: benchmarks
+        )
+
+        print("✅ Goal test notification checkRules called")
+    }
+
+    // MARK: - Notification Check Function
+    private func runNotificationChecks() {
+        let transactions = allTransactions
+        let goals = allGoals
+        let budgets = computeBudgets(transactions: transactions)
+        let benchmarks = fetchBenchmarks() // static for now
+        
+        NotificationManager.shared.checkRules(
+            transactions: transactions,
+            goals: goals,
+            budgets: budgets,
+            benchmarks: benchmarks
+        )
+    }
+    
+    private func computeBudgets(transactions: [TransactionItem]) -> [String: Double] {
+        // Sum the budget per category (using transaction.type as category)
+        var budgets: [String: Double] = [:]
+        
+        for transaction in transactions {
+            let category = transaction.type
+            if let budget = transaction.budget {
+                budgets[category, default: 0] += budget
+            }
+        }
+        
+        return budgets
+    }
+    
+    let benchmarkManager = BenchmarkDataManager()
+
+    func hasUserProfile() -> Bool {
+        let state = UserDefaults.standard.string(forKey: "user_state") ?? "Any"
+        let adultsCount = UserDefaults.standard.string(forKey: "user_adults_count") ?? ""
+        let childrenCount = UserDefaults.standard.string(forKey: "user_children_count") ?? ""
+        let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
+        return state != "Any" && !adultsCount.isEmpty && !childrenCount.isEmpty && incomeRange != "Any"
+    }
+
+    func adjustedValue(for key: String, items: [TransactionItem], frequency: String) -> Double {
+        guard let item = items.first(where: { $0.name == key }) else { return 0 }
+        return item.amount * frequencyMultiplier(from: item.frequency) / frequencyMultiplier(from: frequency)
+    }
+    
+    private func fetchBenchmarks() -> [String: Double] {
+        guard hasUserProfile() else { return [:] }
+        
+        // Get user profile info from UserDefaults
+        let userState = UserDefaults.standard.string(forKey: "user_state") ?? "Any"
+        let adultsCount = Int(UserDefaults.standard.string(forKey: "user_adults_count") ?? "1") ?? 1
+        let childrenCount = Int(UserDefaults.standard.string(forKey: "user_children_count") ?? "0") ?? 0
+        let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
+        
+        // Build a userSpending dictionary placeholder: we only need the keys for benchmarks
+        var userSpending: [String: Double] = [:]
+        
+        // Build spending dictionary for benchmarks
+        for category in AppCategories.spending.values.flatMap({ $0 }) {
+            userSpending[category] = adjustedValue(
+                for: category,
+                items: allTransactions,        // <- pass transactions array here
+                frequency: overallFrequency    // <- pass frequency here
+            )
+        }
+        
+        // Get benchmark comparisons
+        let comparisons = benchmarkManager.getBenchmarkComparisons(
+            userState: userState,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            incomeRange: incomeRange,
+            userSpending: userSpending,
+            overallFrequency: overallFrequency
+        )
+        
+        // Convert comparisons into [Category: Amount] dictionary by summing subcategories
+        var categoryBenchmarks: [String: Double] = [:]
+        for comparison in comparisons {
+            categoryBenchmarks[comparison.category, default: 0] += comparison.benchmarkAmount
+        }
+        
+        return categoryBenchmarks
     }
 }
 
@@ -288,9 +453,21 @@ struct DatePickerSheet: View {
     }
 }
 
+func frequencyMultiplier(from frequency: String) -> Double {
+    switch frequency {
+    case "Weekly": return 52
+    case "Fortnightly": return 26
+    case "Monthly": return 12
+    case "Quarterly": return 4
+    case "Annual": return 1
+    default: return 1
+    }
+}
+
 // MARK: - Helper Extension
 extension View {
     func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
+

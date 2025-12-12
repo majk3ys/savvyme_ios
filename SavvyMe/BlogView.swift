@@ -8,7 +8,7 @@ struct BlogPost: Identifiable {
     let id = UUID()
     let title: String
     let summary: String
-    let htmlFileName: String // Reference to HTML file
+    //let htmlFileName: String // Reference to HTML file
     let articleURL: String // Endpoint to the savvyme.co/blog URL
     let author: String
     let datePublished: Date
@@ -23,13 +23,13 @@ struct BlogPost: Identifiable {
     }
     
     // Load HTML content from file
-    func loadHTMLContent() -> String {
-        guard let path = Bundle.main.path(forResource: htmlFileName, ofType: "html"),
-              let content = try? String(contentsOfFile: path) else {
-            return "<p>Content not available</p>"
-        }
-        return content
-    }
+    //func loadHTMLContent() -> String {
+      //  guard let path = Bundle.main.path(forResource: htmlFileName, ofType: "html"),
+        //      let content = try? String(contentsOfFile: path) else {
+          //  return "<p>Content not available</p>"
+        //}
+        //return content
+    //}
 }
 
 // MARK: - Main Blog View
@@ -43,9 +43,9 @@ struct BlogView: View {
         BlogPost(
             title: "Save money on fuel",
             summary: "Clever hacks to keep more cash in your pocket",
-            htmlFileName: "fuel-savings", // Will load fuel-savings.html from bundle
+            //htmlFileName: "fuel-savings", // Will load fuel-savings.html from bundle
             articleURL: "https://besavvyme.substack.com/p/save-money-on-fuel",
-            author: "Melina Mackey",
+            author: "SavvyMe",
             datePublished: Calendar.current.date(from: DateComponents(year: 2025, month: 2, day: 15)) ?? Date(),
             category: "Save on essentials",
             readTime: 3,
@@ -54,9 +54,9 @@ struct BlogView: View {
         BlogPost(
             title: "Save big on phone & internet plans",
             summary: "Smart strategies to get the best bang for your buck",
-            htmlFileName: "phone-internet-savings", // Will load phone-internet-savings.html from bundle
+            //htmlFileName: "phone-internet-savings", // Will load phone-internet-savings.html from bundle
             articleURL: "https://besavvyme.substack.com/p/save-big-on-phone-and-internet-plans",
-            author: "Xinyu Shi",
+            author: "SavvyMe",
             datePublished: Calendar.current.date(from: DateComponents(year: 2025, month: 2, day: 16)) ?? Date(),
             category: "Save on essentials",
             readTime: 3,
@@ -65,13 +65,35 @@ struct BlogView: View {
         BlogPost(
             title: "Wholesome date ideas that won't break the bank",
             summary: "Fun, romantic and budget-friendly experiences to suit every couple",
-            htmlFileName: "budget-date-ideas", // Will load budget-date-ideas.html from bundle
+            //htmlFileName: "budget-date-ideas", // Will load budget-date-ideas.html from bundle
             articleURL: "https://besavvyme.substack.com/p/wholesome-date-ideas-that-wont-break-the-bank",
-            author: "Melina Mackey & Xinyu Shi",
+            author: "SavvyMe",
             datePublished: Calendar.current.date(from: DateComponents(year: 2025, month: 2, day: 23)) ?? Date(),
             category: "Lifestyle hacks",
             readTime: 5,
             tags: ["dating", "save", "lifestyle", "relationships"]
+        ),
+        BlogPost(
+            title: "Shop smart and stop overpaying for everything you buy",
+            summary: "Spot hidden online deals and save hundreds a year with this 3-step strategy",
+            //htmlFileName: "fuel-savings", // Will load fuel-savings.html from bundle
+            articleURL: "https://besavvyme.substack.com/p/the-smart-shoppers-guide-stop-overpaying",
+            author: "SavvyMe",
+            datePublished: Calendar.current.date(from: DateComponents(year: 2025, month: 8, day: 24)) ?? Date(),
+            category: "Lifestyle hacks",
+            readTime: 8,
+            tags: ["shopping", "lifestyle", "save"]
+        ),
+        BlogPost(
+            title: "ClassPass: the smarter, cheaper way to achieve your fitness goals",
+            summary: "Stretch your body, not your budget – ClassPass vs. Pilates memberships, and other ways to save on fitness",
+            //htmlFileName: "fuel-savings", // Will load fuel-savings.html from bundle
+            articleURL: "https://besavvyme.substack.com/p/classpass-the-smarter-cheaper-way",
+            author: "SavvyMe",
+            datePublished: Calendar.current.date(from: DateComponents(year: 2025, month: 8, day: 28)) ?? Date(),
+            category: "Lifestyle hacks",
+            readTime: 3,
+            tags: ["fitness", "lifestyle", "save", "pilates"]
         )
     ]
     

@@ -10,13 +10,15 @@ final class TransactionItem {
     var frequency: String
     var type: String
     var date: Date?
+    var budget: Double?
 
-    init(id: UUID = UUID(), name: String, amount: Double, frequency: String, type: String, date: Date? = nil) {
+    init(id: UUID = UUID(), name: String, amount: Double, frequency: String, type: String, date: Date? = nil, budget: Double? = nil) {
         self.id = id
         self.name = name
         self.amount = amount
         self.frequency = frequency
         self.type = type
         self.date = date ?? Date()
+        self.budget = budget
     }
 }

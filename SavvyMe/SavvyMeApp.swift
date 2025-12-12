@@ -11,6 +11,12 @@ import SwiftData
 @main
 struct SavvyMeApp: App {
     @StateObject var appState = AppState()
+    
+    // ✅ Request notification permission on app launch
+    init() {
+        // ✅ All notification setup handled in NotificationManager
+        NotificationManager.shared.requestPermission()
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -25,7 +31,7 @@ struct SavvyMeApp: App {
             }
             .environmentObject(appState)
         }
-        .modelContainer(for: TransactionItem.self)
+        .modelContainer(for: [TransactionItem.self, Goal.self])
     }
 }
 
@@ -60,5 +66,16 @@ struct ColorSchemeToggleButton: View {
             // Initialize with system setting when first shown after login
             appState.initializeColorScheme(systemColorScheme: systemColorScheme)
         }
+    }
+}
+
+
+class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationDelegate()
+    
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
     }
 }

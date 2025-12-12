@@ -147,6 +147,85 @@ class BenchmarkDataManager: ObservableObject {
     }
     
     // MARK: - Public Methods
+    
+    // New method for getting benchmark amount for budget suggestions
+    func getBenchmarkAmount(
+        for subcategory: String,
+        state: String,
+        adultsCount: Int,
+        childrenCount: Int,
+        incomeRange: String
+    ) -> Double {
+        // Map income range to benchmark format
+        let benchmarkIncomeRange = mapIncomeToBenchmarkFormat(incomeRange)
+        
+        // Get the display name for the subcategory to match with benchmark data
+        let benchmarkSubcategoryName = AppCategories.spendingDisplayNames[subcategory] ?? subcategory
+        
+        // Find matching benchmark
+        if let benchmark = findMatchingBenchmark(
+            state: state,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            incomeRange: benchmarkIncomeRange,
+            subcategory: benchmarkSubcategoryName
+        ) {
+            // Return the median (p50) as the suggested weekly amount
+            return benchmark.p50
+        }
+        
+        return 0
+    }
+    
+    // Make findMatchingBenchmark public so it can be used by other methods
+    func findMatchingBenchmark(
+        state: String,
+        adultsCount: Int,
+        childrenCount: Int,
+        incomeRange: String,
+        subcategory: String
+    ) -> BenchmarkData? {
+        // First try exact match
+        var matches = benchmarkData.filter {
+            $0.state == state &&
+            $0.numPersonsOver15 == adultsCount &&
+            $0.numDependentsUnder15 == childrenCount &&
+            $0.disposableIncome == incomeRange &&
+            $0.expenseSubcategory == subcategory
+        }
+                
+        if matches.isEmpty {
+            // Try without state constraint
+            matches = benchmarkData.filter {
+                $0.numPersonsOver15 == adultsCount &&
+                $0.numDependentsUnder15 == childrenCount &&
+                $0.disposableIncome == incomeRange &&
+                $0.expenseSubcategory == subcategory
+            }
+        }
+        
+        if matches.isEmpty {
+            // Try with any household composition
+            matches = benchmarkData.filter {
+                $0.disposableIncome == incomeRange &&
+                $0.expenseSubcategory == subcategory
+            }
+        }
+       
+        if matches.isEmpty {
+            // Set national, single person household as default
+            matches = benchmarkData.filter {
+                $0.state == "Any" &&
+                $0.numPersonsOver15 == 1 &&
+                $0.numDependentsUnder15 == 0 &&
+                $0.disposableIncome == "Any" &&
+                $0.expenseSubcategory == subcategory
+            }
+        }
+        
+        return matches.first
+    }
+    
     func getBenchmarkComparisons(
         userState: String,
         adultsCount: Int,
@@ -207,97 +286,16 @@ class BenchmarkDataManager: ObservableObject {
     }
     
     private func getCategoryMapping() -> [String: [String]] {
-        return [
-            "Home": ["mortgage", "rent", "homeInsurance", "electricity", "gas", "water", "phone", "internet", "furniture", "otherHome"],
-            "Daily living": ["groceries", "restaurants", "medical", "healthInsurance", "education", "childCare", "petCare", "otherDailyLiving"],
-            "Transport": ["fuel", "servicing", "regoInsurance", "publicTransport", "otherTransport"],
-            "Entertainment & personal": ["streaming", "electronics", "concerts", "gymClubs", "clothing", "salonBeauty", "holidays", "otherPersonal"]
-        ]
+        return AppCategories.spending
     }
     
     private func getBenchmarkSubcategoryName(_ subcategory: String) -> String {
-        let mapping: [String: String] = [
-            "mortgage": "Mortgage repayments",
-            "rent": "Rent",
-            "homeInsurance": "Home insurance",
-            "electricity": "Electricity",
-            "gas": "Gas",
-            "water": "Water",
-            "phone": "Phone",
-            "internet": "Internet",
-            "furniture": "Furniture",
-            "otherHome": "Other home",
-            "groceries": "Groceries",
-            "restaurants": "Restaurants and takeaway",
-            "medical": "Medical services",
-            "healthInsurance": "Health insurance",
-            "education": "Education",
-            "childCare": "Child care",
-            "petCare": "Pet care",
-            "otherDailyLiving": "Other daily living",
-            "fuel": "Fuel",
-            "servicing": "Servicing",
-            "regoInsurance": "Rego/insurance",
-            "publicTransport": "Public transport",
-            "otherTransport": "Other transport",
-            "streaming": "Streaming services",
-            "electronics": "Electronics",
-            "concerts": "Concert/shows",
-            "gymClubs": "Gym/clubs",
-            "clothing": "Clothing",
-            "salonBeauty": "Salon & beauty",
-            "holidays": "Holidays",
-            "otherPersonal": "Other entertainment & personal"
-        ]
+        let mapping: [String: String] = AppCategories.spendingDisplayNames
         return mapping[subcategory] ?? subcategory
     }
     
     private func convertToWeekly(_ amount: Double, frequency: String) -> Double {
-        switch frequency {
-        case "Weekly": return amount
-        case "Fortnightly": return amount / 2
-        case "Monthly": return amount / 4.33 // Average weeks per month
-        case "Quarterly": return amount / 13
-        case "Annual": return amount / 52
-        default: return amount
-        }
-    }
-    
-    private func findMatchingBenchmark(
-        state: String,
-        adultsCount: Int,
-        childrenCount: Int,
-        incomeRange: String,
-        subcategory: String
-    ) -> BenchmarkData? {
-        // First try exact match
-        var matches = benchmarkData.filter {
-            $0.state == state &&
-            $0.numPersonsOver15 == adultsCount &&
-            $0.numDependentsUnder15 == childrenCount &&
-            $0.disposableIncome == incomeRange &&
-            $0.expenseSubcategory == subcategory
-        }
-                
-        if matches.isEmpty {
-            // Try without state constraint
-            matches = benchmarkData.filter {
-                $0.numPersonsOver15 == adultsCount &&
-                $0.numDependentsUnder15 == childrenCount &&
-                $0.disposableIncome == incomeRange &&
-                $0.expenseSubcategory == subcategory
-            }
-        }
-        
-        if matches.isEmpty {
-            // Try with any household composition
-            matches = benchmarkData.filter {
-                $0.disposableIncome == incomeRange &&
-                $0.expenseSubcategory == subcategory
-            }
-        }
-        
-        return matches.first
+        return amount * frequencyMultiplier(from: frequency) / frequencyMultiplier(from: "Weekly")
     }
     
     private func createComparison(

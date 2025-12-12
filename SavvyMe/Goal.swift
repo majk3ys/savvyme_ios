@@ -1,3 +1,8 @@
+// Goal.swift
+import Foundation
+import SwiftData
+import SwiftUI
+
 // MARK: - Goal Data Model
 @Model
 class Goal {
@@ -49,60 +54,46 @@ class Goal {
     
     var requiredMonthlySavings: Double {
         let months = max(monthsRemaining, 0.1) // Prevent division by zero
-        return remainingAmount / months
+        return min(remainingAmount / months, remainingAmount)
     }
     
-    var isOnTrack: Bool {
-        let expectedProgress = timeProgressPercentage
-        return progressPercentage >= expectedProgress
-    }
-    
-    var timeProgressPercentage: Double {
-        let calendar = Calendar.current
-        let totalDays = calendar.dateComponents([.day], from: createdDate, to: deadline).day ?? 1
-        let elapsedDays = calendar.dateComponents([.day], from: createdDate, to: Date()).day ?? 0
-        return min(Double(elapsedDays) / Double(totalDays) * 100, 100)
-    }
+    func isOnTrack(currentSavingsRate: Double) -> Bool {
+      return currentSavingsRate >= requiredMonthlySavings
+  }
 }
 
 // MARK: - Goal Categories
 struct GoalCategories {
     static let categories = [
-        "Holiday/Recreation",
-        "House Deposit",
-        "Car Purchase",
-        "Emergency Fund",
+        "Holiday/recreation",
+        "House deposit",
+        "Car purchase",
         "Education",
         "Wedding",
         "Investment",
-        "Debt Payoff",
         "Retirement",
         "Other"
     ]
     
     static let categoryIcons: [String: String] = [
-        "Holiday/Recreation": "airplane",
-        "House Deposit": "house.fill",
-        "Car Purchase": "car.fill",
-        "Emergency Fund": "shield.fill",
+        "Holiday/recreation": "airplane",
+        "House deposit": "house.fill",
+        "Car purchase": "car.fill",
         "Education": "graduationcap.fill",
         "Wedding": "heart.fill",
         "Investment": "chart.line.uptrend.xyaxis",
-        "Debt Payoff": "creditcard.fill",
         "Retirement": "figure.walk",
         "Other": "star.fill"
     ]
     
     static let categoryColors: [String: Color] = [
-        "Holiday/Recreation": .orange,
-        "House Deposit": .blue,
-        "Car Purchase": .red,
-        "Emergency Fund": .green,
+        "Holiday/recreation": .orange,
+        "House deposit": .blue,
+        "Car purchase": .gray,
         "Education": .purple,
         "Wedding": .pink,
         "Investment": .mint,
-        "Debt Payoff": .yellow,
         "Retirement": .indigo,
-        "Other": .gray
+        "Other": .yellow
     ]
 }

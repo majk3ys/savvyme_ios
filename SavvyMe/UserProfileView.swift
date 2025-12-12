@@ -257,6 +257,14 @@ struct UserProfileView: View {
         for item in allItems {
             modelContext.delete(item)
         }
+        
+        // Clear SwiftData goals
+        let fetchGoals = try? modelContext.fetch(FetchDescriptor<Goal>())
+        if let goals = fetchGoals {
+            for goal in goals {
+                modelContext.delete(goal)
+            }
+        }
         try? modelContext.save()
         
         // Clear UserDefaults profile data
@@ -291,17 +299,3 @@ struct UserProfileView_Previews: PreviewProvider {
         UserProfileView()
     }
 }
-
-// MARK: - Usage in existing app structure
-/*
-This UserProfileView is now fully integrated with your existing SwiftData setup.
-It will:
-- Clear both profile data (UserDefaults) and transaction data (SwiftData) when "Clear all data" is pressed
-- Use the same navigation title "Profile" as your existing view
-- Maintain the same structure and dependencies
-
-The profile data is stored separately in UserDefaults and can be accessed anywhere in your app with:
-let userAge = UserDefaults.standard.string(forKey: "user_age")
-let userState = UserDefaults.standard.string(forKey: "user_state")
-// etc.
-*/
