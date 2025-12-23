@@ -5,15 +5,28 @@
 //  Created by Melina Mackey on 30/5/2025.
 //
 
-
+import FirebaseAuth
 import SwiftUI
-
 
 class AppState: ObservableObject {
     @Published var currentColorScheme: ColorScheme = .light
     @Published var hasUserToggledColorScheme: Bool = false
     @Published var isAuthenticated: Bool = false
 
+    private var authListener: AuthStateDidChangeListenerHandle?
+
+   init() {
+       listenToAuthChanges()
+   }
+
+    private func listenToAuthChanges() {
+        authListener = Auth.auth().addStateDidChangeListener { _, user in
+            DispatchQueue.main.async {
+                self.isAuthenticated = (user != nil)
+            }
+        }
+    }
+    
     func initializeColorScheme(systemColorScheme: ColorScheme) {
         // Only set to system default if user hasn't manually toggled
         if !hasUserToggledColorScheme {
@@ -61,6 +74,7 @@ struct AuthenticationView: View {
     @EnvironmentObject var appState: AppState
     @State private var email = ""
     @State private var password = ""
+    @State private var errorMessage: String?
 
     var body: some View {
         VStack(spacing: 20) {
@@ -68,23 +82,53 @@ struct AuthenticationView: View {
                 .font(.largeTitle)
 
             TextField("Email", text: $email)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.emailAddress)
 
             SecureField("Password", text: $password)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-
+                .textFieldStyle(.roundedBorder)
+            
+            if let errorMessage {
+                Text(errorMessage)
+                    .foregroundColor(.red)
+                    .font(.caption)
+            }
+            
             Button("Login") {
-                // Call your backend here
-                // For now, we simulate successful login
-                appState.isAuthenticated = true
+                Task {
+                    await login()
+                }
             }
             .foregroundColor(ColorTheme.primary)
 
             Button("Register") {
-                // Navigate to register screen (optional)
+                Task {
+                    await register()
+                }
             }
             .foregroundColor(ColorTheme.primary)
         }
         .padding()
+    }
+    
+    // MARK: - Actions
+    private func login() async {
+        do {
+            try await AuthService.shared.signIn(email: email, password: password)
+            errorMessage = nil
+            // ✅ AppState will auto-update via auth listener
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func register() async {
+        do {
+            try await AuthService.shared.register(email: email, password: password)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }

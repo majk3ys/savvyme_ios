@@ -5,6 +5,7 @@
 //  Created by Melina Mackey on 30/5/2025.
 //
 
+import Firebase
 import SwiftUI
 import SwiftData
 
@@ -14,6 +15,7 @@ struct SavvyMeApp: App {
     
     // ✅ Request notification permission on app launch
     init() {
+        FirebaseApp.configure()
         // ✅ All notification setup handled in NotificationManager
         NotificationManager.shared.requestPermission()
     }

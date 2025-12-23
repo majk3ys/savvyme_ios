@@ -4,7 +4,7 @@ import SwiftData
 struct UserProfileView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allItems: [TransactionItem]
-    
+
     // User profile data
     @State private var age: String = ""
     @State private var selectedState = "Any"
@@ -15,6 +15,7 @@ struct UserProfileView: View {
     @State private var selectedIncomeRange = "Any"
     
     // Form validation and UI state
+    @State private var showingLogoutAlert = false
     @State private var showingSaveAlert = false
     @State private var showingClearAlert = false
     @State private var isFormValid = false
@@ -74,7 +75,15 @@ struct UserProfileView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
-
+                
+                Section {
+                    Button(role: .destructive) {
+                        showingLogoutAlert = true
+                    } label: {
+                        Text("Log out")
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                }
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.large)
@@ -104,6 +113,15 @@ struct UserProfileView: View {
         } message: {
             Text("This will permanently delete all your profile data and transaction data. This action cannot be undone.")
         }
+        .alert("Log out of SavvyMe?", isPresented: $showingLogoutAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Log out", role: .destructive) {
+                logout()
+            }
+        } message: {
+            Text("You’ll need to log in again to access your data.")
+        }
+
     }
     
     // MARK: - Helper Functions
@@ -291,6 +309,17 @@ struct UserProfileView: View {
         let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
         impactFeedback.impactOccurred()
     }
+    
+    private func logout() {
+        do {
+            try AuthService.shared.signOut()
+            // ✅ App will automatically switch to AuthenticationView
+            // via Firebase auth state listener
+        } catch {
+            print("Logout failed: \(error)")
+        }
+    }
+
 }
 
 // MARK: - Preview
