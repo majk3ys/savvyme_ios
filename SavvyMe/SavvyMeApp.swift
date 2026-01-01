@@ -9,11 +9,9 @@ import Firebase
 import SwiftUI
 import SwiftData
 import FirebaseFirestore
-import UIKit
 
 @main
 struct SavvyMeApp: App {
-    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject var appState = AppState()
     
     // ✅ Request notification permission on app launch
@@ -21,8 +19,6 @@ struct SavvyMeApp: App {
         FirebaseApp.configure()
         // Ensure Firestore is ready before use
         _ = Firestore.firestore()
-        // ✅ All notification setup handled in NotificationManager
-        NotificationManager.shared.requestPermission()
     }
 
     var body: some Scene {
