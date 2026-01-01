@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import FirebaseAuth
 
 struct UserProfileView: View {
     @Environment(\.modelContext) private var modelContext
@@ -56,15 +57,15 @@ struct UserProfileView: View {
                 householdInfoSection
                 incomeSection
                 
-                Section {
-                    Button(action: {
-                        saveProfile()
-                    }) {
-                        Text("Save profile")
-                            .frame(maxWidth: .infinity, alignment: .center)
-                    }
-                    .disabled(!isFormValid)
-                }
+        Section {
+            Button(action: {
+                saveProfile()
+            }) {
+                Text("Save profile")
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .disabled(!isFormValid)
+        }
 
                 Section {
                     Button(action: {
@@ -243,7 +244,8 @@ struct UserProfileView: View {
     }
 
     private func saveProfile() {
-        // Save to UserDefaults
+        // Save to UserDefaults for local caching
+        let now = Date()
         UserDefaults.standard.set(age, forKey: "user_age")
         UserDefaults.standard.set(selectedState, forKey: "user_state")
         UserDefaults.standard.set(postcode, forKey: "user_postcode")
@@ -251,9 +253,32 @@ struct UserProfileView: View {
         UserDefaults.standard.set(adultsCount, forKey: "user_adults_count")
         UserDefaults.standard.set(childrenCount, forKey: "user_children_count")
         UserDefaults.standard.set(selectedIncomeRange, forKey: "user_income_range")
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "profile_last_updated")
+        UserDefaults.standard.set(now.timeIntervalSince1970, forKey: "profile_last_updated")
 
-        showingSaveAlert = true
+        Task {
+            guard let userId = Auth.auth().currentUser?.uid else {
+                print("User not authenticated; skipping profile upload")
+                return
+            }
+
+            let record = UserProfileRecord(
+                age: age,
+                state: selectedState,
+                postcode: postcode,
+                maritalStatus: maritalStatus,
+                adultsCount: adultsCount,
+                childrenCount: childrenCount,
+                incomeRange: selectedIncomeRange,
+                lastUpdated: now
+            )
+
+            do {
+                try await FirestoreService.shared.saveUserProfile(userId: userId, profile: record)
+                showingSaveAlert = true
+            } catch {
+                print("Failed to save profile: \(error)")
+            }
+        }
         
         // Haptic feedback
         let impactFeedback = UIImpactFeedbackGenerator(style: .medium)

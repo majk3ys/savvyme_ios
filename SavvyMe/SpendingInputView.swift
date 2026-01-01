@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import Foundation
+import FirebaseAuth
 
 struct SpendingInputView: View {
     @Environment(\.modelContext) private var modelContext
@@ -190,6 +191,7 @@ struct SpendingInputView: View {
                 }
                 
                 try modelContext.save()
+                await syncTransactionsToCloud()
             } catch {
                 print("Error saving item: \(error)")
             }
@@ -233,6 +235,7 @@ struct SpendingInputView: View {
                 }
                 
                 try modelContext.save()
+                await syncTransactionsToCloud()
             } catch {
                 print("Error saving budget: \(error)")
             }
@@ -291,6 +294,16 @@ struct SpendingInputView: View {
            formatter.maximumFractionDigits = 0
            return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.0f", value)
        }
+
+    private func syncTransactionsToCloud() async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+
+        do {
+            try await FirestoreService.shared.pushTransactionsFromLocal(userId: userId, modelContext: modelContext)
+        } catch {
+            print("Failed to sync transactions to cloud: \(error)")
+        }
+    }
 }
 
 // MARK: - Sub Views

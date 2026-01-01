@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import FirebaseAuth
 
 struct MainTabView: View {
     @EnvironmentObject var appState: AppState
@@ -16,6 +17,7 @@ struct MainTabView: View {
     @State private var overallFrequency: String = "Annual"
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
+    @State private var hasRestoredCloudTransactions: Bool = false
     
     @Environment(\.modelContext) private var modelContext
     @Query private var allTransactions: [TransactionItem]
@@ -62,6 +64,16 @@ struct MainTabView: View {
             // ✅ Run notification checks once when the TabView appears
             .onAppear {
                 runNotificationChecks()
+            }
+            .task {
+                await restoreTransactionsIfNeeded()
+            }
+            .onChange(of: appState.isAuthenticated) { _, newValue in
+                if newValue {
+                    Task { await restoreTransactionsIfNeeded() }
+                } else {
+                    hasRestoredCloudTransactions = false
+                }
             }
 
             ColorSchemeToggleButton()
@@ -217,6 +229,19 @@ struct MainTabView: View {
         }
         
         return categoryBenchmarks
+    }
+
+    // MARK: - Cloud Sync
+    private func restoreTransactionsIfNeeded() async {
+        guard appState.isAuthenticated, !hasRestoredCloudTransactions else { return }
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+
+        do {
+            try await FirestoreService.shared.pullTransactionsIntoLocal(userId: userId, modelContext: modelContext)
+            hasRestoredCloudTransactions = true
+        } catch {
+            print("Failed to restore transactions from cloud: \(error)")
+        }
     }
 }
 
@@ -470,4 +495,3 @@ extension View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
-
