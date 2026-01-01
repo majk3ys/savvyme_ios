@@ -177,6 +177,9 @@ struct SpendingInputView: View {
                         existingItem.frequency = frequency
                         existingItem.type = itemType
                         existingItem.date = selectedDate
+                        Task {
+                            try? await UserDataService.shared.saveTransaction(existingItem)
+                        }
                     }
                 } else {
                     let newItem = TransactionItem(
@@ -187,6 +190,9 @@ struct SpendingInputView: View {
                         date: selectedDate
                     )
                     modelContext.insert(newItem)
+                    Task {
+                        try? await UserDataService.shared.saveTransaction(newItem)
+                    }
                 }
                 
                 try modelContext.save()
@@ -216,6 +222,9 @@ struct SpendingInputView: View {
                     let newBudget = budget > 0 ? budget : nil
                     if existingItem.budget != newBudget {
                         existingItem.budget = newBudget
+                        Task {
+                            try? await UserDataService.shared.saveTransaction(existingItem)
+                        }
                     }
                 } else {
                     // Create new item with budget only if budget > 0
@@ -229,6 +238,9 @@ struct SpendingInputView: View {
                             budget: budget
                         )
                         modelContext.insert(newItem)
+                        Task {
+                            try? await UserDataService.shared.saveTransaction(newItem)
+                        }
                     }
                 }
                 

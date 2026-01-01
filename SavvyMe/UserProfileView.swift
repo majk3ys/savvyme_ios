@@ -19,6 +19,7 @@ struct UserProfileView: View {
     @State private var showingSaveAlert = false
     @State private var showingClearAlert = false
     @State private var isFormValid = false
+    @State private var isLoadingProfile = false
     
     // Australian states and territories
     let australianStates = [
@@ -88,8 +89,10 @@ struct UserProfileView: View {
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.large)
             .onAppear {
-                loadSavedProfile()
                 validateForm()
+                Task {
+                    await loadProfile()
+                }
             }
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
@@ -243,31 +246,60 @@ struct UserProfileView: View {
     }
 
     private func saveProfile() {
-        // Save to UserDefaults
-        UserDefaults.standard.set(age, forKey: "user_age")
-        UserDefaults.standard.set(selectedState, forKey: "user_state")
-        UserDefaults.standard.set(postcode, forKey: "user_postcode")
-        UserDefaults.standard.set(maritalStatus, forKey: "user_marital_status")
-        UserDefaults.standard.set(adultsCount, forKey: "user_adults_count")
-        UserDefaults.standard.set(childrenCount, forKey: "user_children_count")
-        UserDefaults.standard.set(selectedIncomeRange, forKey: "user_income_range")
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "profile_last_updated")
+        let profile = UserProfileData(
+            age: age,
+            state: selectedState,
+            postcode: postcode,
+            maritalStatus: maritalStatus,
+            adultsCount: adultsCount,
+            childrenCount: childrenCount,
+            incomeRange: selectedIncomeRange,
+            updatedAt: Date()
+        )
 
+        profile.saveToDefaults()
         showingSaveAlert = true
+        
+        Task {
+            do {
+                try await UserDataService.shared.saveProfile(profile)
+            } catch {
+                print("Failed to save profile to cloud: \(error)")
+            }
+        }
         
         // Haptic feedback
         let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
         impactFeedback.impactOccurred()
     }
     
-    private func loadSavedProfile() {
-        age = UserDefaults.standard.string(forKey: "user_age") ?? ""
-        selectedState = UserDefaults.standard.string(forKey: "user_state") ?? "Any"
-        postcode = UserDefaults.standard.string(forKey: "user_postcode") ?? ""
-        maritalStatus = UserDefaults.standard.string(forKey: "user_marital_status") ?? ""
-        adultsCount = UserDefaults.standard.string(forKey: "user_adults_count") ?? ""
-        childrenCount = UserDefaults.standard.string(forKey: "user_children_count") ?? ""
-        selectedIncomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
+    private func loadProfile() async {
+        await MainActor.run {
+            isLoadingProfile = true
+        }
+        if let remoteProfile = try? await UserDataService.shared.fetchProfile() {
+            remoteProfile.saveToDefaults()
+            await MainActor.run {
+                apply(profile: remoteProfile)
+                isLoadingProfile = false
+            }
+            return
+        }
+        await MainActor.run {
+            let cached = UserProfileData.fromDefaults()
+            apply(profile: cached)
+            isLoadingProfile = false
+        }
+    }
+
+    private func apply(profile: UserProfileData) {
+        age = profile.age
+        selectedState = profile.state
+        postcode = profile.postcode
+        maritalStatus = profile.maritalStatus
+        adultsCount = profile.adultsCount
+        childrenCount = profile.childrenCount
+        selectedIncomeRange = profile.incomeRange
     }
     
     private func clearAllData() {
@@ -304,6 +336,10 @@ struct UserProfileView: View {
         selectedIncomeRange = "Any"
         
         validateForm()
+
+        Task {
+            await UserDataService.shared.clearRemoteData()
+        }
         
         // Haptic feedback
         let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
