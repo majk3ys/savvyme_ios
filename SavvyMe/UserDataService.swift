@@ -67,6 +67,16 @@ final class UserDataService {
         return db.collection("users").document(uid)
     }
     
+    /// Ensures the user document exists before writing to subcollections.
+    private func ensureUserDocumentExists() async throws -> DocumentReference {
+        let doc = try userDocument()
+        let snapshot = try await doc.getDocument()
+        if !snapshot.exists {
+            try await doc.setData(["createdAt": Timestamp(date: Date())], merge: true)
+        }
+        return doc
+    }
+    
     // MARK: - Profile
     func saveProfile(_ profile: UserProfileData) async throws {
         let doc = try userDocument()
@@ -102,7 +112,7 @@ final class UserDataService {
     
     // MARK: - Transactions
     func saveTransaction(_ transaction: TransactionItem) async throws {
-        let doc = try userDocument()
+        let doc = try await ensureUserDocumentExists()
         var payload: [String: Any] = [
             "name": transaction.name,
             "amount": transaction.amount,
