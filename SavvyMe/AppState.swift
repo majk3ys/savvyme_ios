@@ -22,9 +22,21 @@ class AppState: ObservableObject {
     private func listenToAuthChanges() {
         authListener = Auth.auth().addStateDidChangeListener { _, user in
             DispatchQueue.main.async {
-                self.isAuthenticated = (user != nil)
+                self.handleAuthChange(user: user)
             }
         }
+    }
+    
+    private func handleAuthChange(user: User?) {
+        guard let user else {
+            isAuthenticated = false
+            return
+        }
+        // Ensure a blank profile exists for new users so the Profile screen starts empty but is persisted.
+        Task {
+            await UserDataService.shared.saveBlankProfileIfNeeded()
+        }
+        isAuthenticated = true
     }
     
     func initializeColorScheme(systemColorScheme: ColorScheme) {
@@ -119,6 +131,7 @@ struct AuthenticationView: View {
             errorMessage = nil
             // ✅ AppState will auto-update via auth listener
         } catch {
+            // logAuthError(error, context: "login")
             errorMessage = error.localizedDescription
         }
     }
@@ -128,7 +141,18 @@ struct AuthenticationView: View {
             try await AuthService.shared.register(email: email, password: password)
             errorMessage = nil
         } catch {
+            // logAuthError(error, context: "register")
             errorMessage = error.localizedDescription
         }
+    }
+    
+    // MARK: - Debug helpers
+    // Use this to inspect FirebaseAuth errors in the console and to set a breakpoint.
+    private func logAuthError(_ error: Error, context: String) {
+        let nsError = error as NSError
+        let code = nsError.code
+        let domain = nsError.domain
+        let message = nsError.localizedDescription
+        print("❌ Auth \(context) error: domain=\(domain) code=\(code) message=\(message) userInfo=\(nsError.userInfo)")
     }
 }

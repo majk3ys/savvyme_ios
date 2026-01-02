@@ -16,6 +16,7 @@ struct MainTabView: View {
     @State private var overallFrequency: String = "Annual"
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
+    @State private var hasRestoredUserData = false
     
     @Environment(\.modelContext) private var modelContext
     @Query private var allTransactions: [TransactionItem]
@@ -62,6 +63,9 @@ struct MainTabView: View {
             // ✅ Run notification checks once when the TabView appears
             .onAppear {
                 runNotificationChecks()
+                Task {
+                    await restoreUserDataIfNeeded()
+                }
             }
 
             ColorSchemeToggleButton()
@@ -162,6 +166,15 @@ struct MainTabView: View {
         }
         
         return budgets
+    }
+    
+    // MARK: - User data sync
+    private func restoreUserDataIfNeeded() async {
+        guard !hasRestoredUserData else { return }
+        await UserDataService.shared.restoreUserData(to: modelContext)
+        await MainActor.run {
+            hasRestoredUserData = true
+        }
     }
     
     let benchmarkManager = BenchmarkDataManager()
@@ -470,4 +483,3 @@ extension View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
-
