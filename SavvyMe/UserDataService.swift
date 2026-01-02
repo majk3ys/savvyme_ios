@@ -38,6 +38,18 @@ struct UserProfileData: Codable {
         defaults.set(incomeRange, forKey: "user_income_range")
         defaults.set(updatedAt.timeIntervalSince1970, forKey: "profile_last_updated")
     }
+    
+    static func clearDefaults() {
+        let defaults = UserDefaults.standard
+        ["user_age",
+         "user_state",
+         "user_postcode",
+         "user_marital_status",
+         "user_adults_count",
+         "user_children_count",
+         "user_income_range",
+         "profile_last_updated"].forEach { defaults.removeObject(forKey: $0) }
+    }
 }
 
 struct RemoteTransaction: Codable {

@@ -14,6 +14,7 @@ class AppState: ObservableObject {
     @Published var isAuthenticated: Bool = false
 
     private var authListener: AuthStateDidChangeListenerHandle?
+    private let lastUserKey = "last_authenticated_uid"
 
    init() {
        listenToAuthChanges()
@@ -22,9 +23,26 @@ class AppState: ObservableObject {
     private func listenToAuthChanges() {
         authListener = Auth.auth().addStateDidChangeListener { _, user in
             DispatchQueue.main.async {
-                self.isAuthenticated = (user != nil)
+                self.handleAuthChange(user: user)
             }
         }
+    }
+    
+    private func handleAuthChange(user: User?) {
+        guard let user else {
+            isAuthenticated = false
+            return
+        }
+        
+        let defaults = UserDefaults.standard
+        let previousUser = defaults.string(forKey: lastUserKey)
+        if previousUser != user.uid {
+            // New user logged in: clear cached profile defaults so the profile view starts blank.
+            UserProfileData.clearDefaults()
+            defaults.set(user.uid, forKey: lastUserKey)
+        }
+        
+        isAuthenticated = true
     }
     
     func initializeColorScheme(systemColorScheme: ColorScheme) {
