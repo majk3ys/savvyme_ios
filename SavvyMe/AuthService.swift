@@ -6,6 +6,7 @@
 //
 
 import FirebaseAuth
+import Foundation
 
 final class AuthService {
     static let shared = AuthService()
@@ -19,6 +20,8 @@ final class AuthService {
     // MARK: - Register
     func register(email: String, password: String) async throws {
         try await Auth.auth().createUser(withEmail: email, password: password)
+        // Immediately create a blank profile entry for the new user
+        await UserDataService.shared.saveBlankProfileIfNeeded()
     }
 
     // MARK: - Logout
