@@ -18,6 +18,14 @@ struct SavvyMeApp: App {
         FirebaseApp.configure()
         // ✅ All notification setup handled in NotificationManager
         NotificationManager.shared.requestPermission()
+        // Remove the default input assistant bar to avoid UIKit constraint warnings
+        let textFieldAppearance = UITextField.appearance()
+        textFieldAppearance.inputAssistantItem.leadingBarButtonGroups = []
+        textFieldAppearance.inputAssistantItem.trailingBarButtonGroups = []
+
+        let textViewAppearance = UITextView.appearance()
+        textViewAppearance.inputAssistantItem.leadingBarButtonGroups = []
+        textViewAppearance.inputAssistantItem.trailingBarButtonGroups = []
     }
 
     var body: some Scene {
