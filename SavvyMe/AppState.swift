@@ -131,7 +131,7 @@ struct AuthenticationView: View {
             errorMessage = nil
             // ✅ AppState will auto-update via auth listener
         } catch {
-            logAuthError(error, context: "login")
+            // logAuthError(error, context: "login")
             errorMessage = error.localizedDescription
         }
     }
@@ -141,19 +141,18 @@ struct AuthenticationView: View {
             try await AuthService.shared.register(email: email, password: password)
             errorMessage = nil
         } catch {
-            logAuthError(error, context: "register")
+            // logAuthError(error, context: "register")
             errorMessage = error.localizedDescription
         }
     }
-
+    
     // MARK: - Debug helpers
-    /// Use this to inspect FirebaseAuth errors in the console and to set a breakpoint.
+    // Use this to inspect FirebaseAuth errors in the console and to set a breakpoint.
     private func logAuthError(_ error: Error, context: String) {
         let nsError = error as NSError
         let code = nsError.code
         let domain = nsError.domain
         let message = nsError.localizedDescription
         print("❌ Auth \(context) error: domain=\(domain) code=\(code) message=\(message) userInfo=\(nsError.userInfo)")
-        // 🔖 Suggested breakpoint: set one here to inspect `nsError` in the debugger.
     }
 }
