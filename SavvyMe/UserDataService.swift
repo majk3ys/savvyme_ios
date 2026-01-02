@@ -105,6 +105,30 @@ final class UserDataService {
         try await doc.setData(payload, merge: true)
     }
     
+    func saveBlankProfileIfNeeded() async {
+        do {
+            let doc = try userDocument()
+            let snapshot = try await doc.getDocument()
+            if snapshot.exists, snapshot.data()?["age"] != nil {
+                return // Profile already saved
+            }
+            let blank = UserProfileData(
+                age: "",
+                state: "Any",
+                postcode: "",
+                maritalStatus: "",
+                adultsCount: "",
+                childrenCount: "",
+                incomeRange: "Any",
+                updatedAt: Date()
+            )
+            try await saveProfile(blank)
+            blank.saveToDefaults()
+        } catch {
+            print("Failed to save blank profile: \(error)")
+        }
+    }
+    
     func fetchProfile() async throws -> UserProfileData? {
         let doc = try userDocument()
         let snapshot = try await doc.getDocument()

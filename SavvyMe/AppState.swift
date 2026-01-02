@@ -32,7 +32,10 @@ class AppState: ObservableObject {
             isAuthenticated = false
             return
         }
-
+        // Ensure a blank profile exists for new users so the Profile screen starts empty but is persisted.
+        Task {
+            await UserDataService.shared.saveBlankProfileIfNeeded()
+        }
         isAuthenticated = true
     }
     
