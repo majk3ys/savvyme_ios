@@ -151,6 +151,9 @@ struct GoalsView: View {
             AddGoalView { goal in
                 modelContext.insert(goal)
                 try? modelContext.save()
+                Task {
+                    try? await UserDataService.shared.saveGoal(goal)
+                }
             }
         }
         .sheet(item: $showingGoalDetail) { goal in
@@ -984,6 +987,9 @@ struct GoalDetailView: View {
                 }
                 
                 try? modelContext.save()
+                Task {
+                    try? await UserDataService.shared.saveGoal(goal)
+                }
             }
         }
         .alert("Delete goal", isPresented: $showingDeleteAlert) {
@@ -1001,12 +1007,18 @@ struct GoalDetailView: View {
         goal.isCompleted = true
         goal.currentAmount = goal.targetAmount
         try? modelContext.save()
+        Task {
+            try? await UserDataService.shared.saveGoal(goal)
+        }
         dismiss()
     }
     
     private func deleteGoal() {
         modelContext.delete(goal)
         try? modelContext.save()
+        Task {
+            try? await UserDataService.shared.deleteGoal(goal)
+        }
         dismiss()
     }
     

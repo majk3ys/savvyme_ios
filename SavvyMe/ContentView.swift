@@ -64,6 +64,9 @@ struct MainTabView: View {
             .onAppear {
                 runNotificationChecks()
                 Task {
+                    await UserDataService.shared.updateUserTimezone()
+                }
+                Task {
                     await restoreUserDataIfNeeded()
                 }
             }
