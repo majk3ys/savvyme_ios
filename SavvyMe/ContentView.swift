@@ -7,7 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import UserNotifications
 
 struct MainTabView: View {
     @EnvironmentObject var appState: AppState
@@ -75,71 +74,7 @@ struct MainTabView: View {
                 .padding(.top, 50)
                 .padding(.trailing, 12)
             
-            #if DEBUG
-            Button("Run Notification Test") {
-                runNotificationTest()
-            }
-            .padding()
-            .background(Color.blue)
-            .foregroundColor(.white)
-            .cornerRadius(8)
-            #endif
-
         }
-    }
-    
-    func sendTestNotification() {
-        let content = UNMutableNotificationContent()
-        content.title = "Test Notification"
-        content.body = "This is a random test message!"
-        content.sound = .default
-        
-        // Trigger after 5 seconds
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
-        
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
-            content: content,
-            trigger: trigger
-        )
-        
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ Failed to schedule notification: \(error)")
-            } else {
-                print("✅ Test notification scheduled")
-            }
-        }
-    }
-    
-    
-    
-    // MARK: - Debug Notification Tester
-    private func runNotificationTest() {
-        // Use actual transactions if you want realistic testing
-        let transactions = allTransactions
-        let goals = [
-                Goal(
-                    name: "Car test goal",
-                    targetAmount: 2000,
-                    currentAmount: 200,
-                    category: "Car purchase",
-                    deadline: Calendar.current.date(byAdding: .day, value: 7, to: Date())!
-                )
-            ]
-
-        let budgets = computeBudgets(transactions: transactions)
-        let benchmarks = fetchBenchmarks()
-
-        // Call your NotificationManager
-        NotificationManager.shared.checkRules(
-            transactions: transactions,
-            goals: goals,
-            budgets: budgets,
-            benchmarks: benchmarks
-        )
-
-        print("✅ Goal test notification checkRules called")
     }
 
     // MARK: - Notification Check Function
