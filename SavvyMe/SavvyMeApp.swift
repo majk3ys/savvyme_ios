@@ -6,11 +6,13 @@
 //
 
 import Firebase
+import FirebaseMessaging
 import SwiftUI
 import SwiftData
 
 @main
 struct SavvyMeApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject var appState = AppState()
     
     // ✅ Request notification permission on app launch
@@ -42,6 +44,27 @@ struct SavvyMeApp: App {
             .environmentObject(appState)
         }
         .modelContainer(for: [TransactionItem.self, Goal.self])
+    }
+}
+
+final class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        Messaging.messaging().delegate = self
+        application.registerForRemoteNotifications()
+        return true
+    }
+
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Messaging.messaging().apnsToken = deviceToken
+    }
+
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard let fcmToken else { return }
+        Task {
+            await UserDataService.shared.updateDeviceToken(fcmToken)
+        }
     }
 }
 

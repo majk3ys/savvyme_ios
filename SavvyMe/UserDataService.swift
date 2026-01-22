@@ -82,6 +82,7 @@ final class UserDataService {
     static let shared = UserDataService()
     private let db = Firestore.firestore()
     private init() {}
+    private let deviceIdKey = "device_id"
     
     // MARK: - Helpers
     private func userDocument() throws -> DocumentReference {
@@ -332,6 +333,33 @@ final class UserDataService {
         } catch {
             print("Failed to update timezone: \(error)")
         }
+    }
+
+    func updateDeviceToken(_ token: String) async {
+        do {
+            let doc = try await ensureUserDocumentExists()
+            let deviceId = resolveDeviceId()
+            let payload: [String: Any] = [
+                "fcmToken": token,
+                "platform": "ios",
+                "updatedAt": Timestamp(date: Date())
+            ]
+            try await doc.collection("devices")
+                .document(deviceId)
+                .setData(payload, merge: true)
+        } catch {
+            print("Failed to update device token: \(error)")
+        }
+    }
+
+    private func resolveDeviceId() -> String {
+        let defaults = UserDefaults.standard
+        if let existing = defaults.string(forKey: deviceIdKey) {
+            return existing
+        }
+        let newId = UUID().uuidString
+        defaults.set(newId, forKey: deviceIdKey)
+        return newId
     }
     
     func clearRemoteData() async {
