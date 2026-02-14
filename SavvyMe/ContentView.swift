@@ -59,9 +59,7 @@ struct MainTabView: View {
                     }
             }
             .accentColor(ColorTheme.primary)
-            // ✅ Run notification checks once when the TabView appears
             .onAppear {
-                runNotificationChecks()
                 Task {
                     await UserDataService.shared.updateUserTimezone()
                 }
@@ -77,21 +75,6 @@ struct MainTabView: View {
         }
     }
 
-    // MARK: - Notification Check Function
-    private func runNotificationChecks() {
-        let transactions = allTransactions
-        let goals = allGoals
-        let budgets = computeBudgets(transactions: transactions)
-        let benchmarks = fetchBenchmarks() // static for now
-        
-        NotificationManager.shared.checkRules(
-            transactions: transactions,
-            goals: goals,
-            budgets: budgets,
-            benchmarks: benchmarks
-        )
-    }
-    
     private func computeBudgets(transactions: [TransactionItem]) -> [String: Double] {
         // Sum the budget per category (using transaction.type as category)
         var budgets: [String: Double] = [:]
