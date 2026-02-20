@@ -62,6 +62,18 @@ struct RemoteTransaction: Codable {
     var budget: Double?
 }
 
+struct RemoteGoal: Codable {
+    var id: UUID
+    var name: String
+    var targetAmount: Double
+    var currentAmount: Double
+    var category: String
+    var deadline: Date
+    var createdDate: Date
+    var isCompleted: Bool
+    var notes: String?
+}
+
 enum UserDataError: Error {
     case notAuthenticated
 }
@@ -70,6 +82,7 @@ final class UserDataService {
     static let shared = UserDataService()
     private let db = Firestore.firestore()
     private init() {}
+    private let deviceIdKey = "device_id"
     
     // MARK: - Helpers
     private func userDocument() throws -> DocumentReference {
@@ -189,6 +202,87 @@ final class UserDataService {
             )
         }
     }
+
+    // MARK: - Goals
+    func saveGoal(_ goal: Goal) async throws {
+        let doc = try await ensureUserDocumentExists()
+        var payload: [String: Any] = [
+            "name": goal.name,
+            "targetAmount": goal.targetAmount,
+            "currentAmount": goal.currentAmount,
+            "category": goal.category,
+            "deadline": Timestamp(date: goal.deadline),
+            "createdDate": Timestamp(date: goal.createdDate),
+            "isCompleted": goal.isCompleted
+        ]
+        if let notes = goal.notes {
+            payload["notes"] = notes
+        }
+        try await doc.collection("goals")
+            .document(goal.id.uuidString)
+            .setData(payload, merge: true)
+    }
+
+    func deleteGoal(_ goal: Goal) async throws {
+        let doc = try userDocument()
+        try await doc.collection("goals")
+            .document(goal.id.uuidString)
+            .delete()
+    }
+
+    func fetchGoals() async throws -> [RemoteGoal] {
+        let doc = try userDocument()
+        let snapshot = try await doc.collection("goals").getDocuments()
+        return snapshot.documents.compactMap { document in
+            let data = document.data()
+            guard let name = data["name"] as? String,
+                  let targetAmount = data["targetAmount"] as? Double,
+                  let currentAmount = data["currentAmount"] as? Double,
+                  let category = data["category"] as? String,
+                  let deadline = (data["deadline"] as? Timestamp)?.dateValue(),
+                  let createdDate = (data["createdDate"] as? Timestamp)?.dateValue(),
+                  let isCompleted = data["isCompleted"] as? Bool else {
+                return nil
+            }
+            let notes = data["notes"] as? String
+            let uuid = UUID(uuidString: document.documentID) ?? UUID()
+            return RemoteGoal(
+                id: uuid,
+                name: name,
+                targetAmount: targetAmount,
+                currentAmount: currentAmount,
+                category: category,
+                deadline: deadline,
+                createdDate: createdDate,
+                isCompleted: isCompleted,
+                notes: notes
+            )
+        }
+    }
+
+    func replaceLocalGoals(with remote: [RemoteGoal], in modelContext: ModelContext) async throws {
+        try await MainActor.run {
+            let fetchDescriptor = FetchDescriptor<Goal>()
+            if let existing = try? modelContext.fetch(fetchDescriptor) {
+                existing.forEach { modelContext.delete($0) }
+            }
+            for goal in remote {
+                let newGoal = Goal(
+                    name: goal.name,
+                    targetAmount: goal.targetAmount,
+                    currentAmount: goal.currentAmount,
+                    category: goal.category,
+                    deadline: goal.deadline,
+                    notes: goal.notes
+                )
+                newGoal.id = goal.id
+                newGoal.createdDate = goal.createdDate
+                newGoal.isCompleted = goal.isCompleted
+                modelContext.insert(newGoal)
+            }
+            try modelContext.save()
+        }
+    }
     
     func replaceLocalTransactions(with remote: [RemoteTransaction], in modelContext: ModelContext) async throws {
         try await MainActor.run {
@@ -220,9 +314,52 @@ final class UserDataService {
             }
             let transactions = try await fetchTransactions()
             try await replaceLocalTransactions(with: transactions, in: modelContext)
+            let goals = try await fetchGoals()
+            try await replaceLocalGoals(with: goals, in: modelContext)
         } catch {
             print("Failed to restore user data: \(error)")
         }
+    }
+
+    // MARK: - Device metadata
+    func updateUserTimezone() async {
+        do {
+            let doc = try await ensureUserDocumentExists()
+            let timezone = TimeZone.current.identifier
+            try await doc.setData(
+                ["timezone": timezone, "timezoneUpdatedAt": Timestamp(date: Date())],
+                merge: true
+            )
+        } catch {
+            print("Failed to update timezone: \(error)")
+        }
+    }
+
+    func updateDeviceToken(_ token: String) async {
+        do {
+            let doc = try await ensureUserDocumentExists()
+            let deviceId = resolveDeviceId()
+            let payload: [String: Any] = [
+                "fcmToken": token,
+                "platform": "ios",
+                "updatedAt": Timestamp(date: Date())
+            ]
+            try await doc.collection("devices")
+                .document(deviceId)
+                .setData(payload, merge: true)
+        } catch {
+            print("Failed to update device token: \(error)")
+        }
+    }
+
+    private func resolveDeviceId() -> String {
+        let defaults = UserDefaults.standard
+        if let existing = defaults.string(forKey: deviceIdKey) {
+            return existing
+        }
+        let newId = UUID().uuidString
+        defaults.set(newId, forKey: deviceIdKey)
+        return newId
     }
     
     func clearRemoteData() async {
