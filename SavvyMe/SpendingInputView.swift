@@ -12,7 +12,7 @@ struct SpendingInputView: View {
     @State private var searchText = ""
     @State private var selectedSegment = 0 // 0 for Spending, 1 for Income
     @State private var showingDatePicker = false
-    @StateObject private var benchmarkManager = BenchmarkDataManager()
+    private let benchmarkManager = BenchmarkDataManager.shared
     
     var currentCategories: [String: [String]] {
         selectedSegment == 0 ? AppCategories.spending : AppCategories.income

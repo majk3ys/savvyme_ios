@@ -16,7 +16,7 @@ struct DashboardView: View {
     @State private var showingDatePicker = false
     @State private var showTrendChartView = false
     @AppStorage("profile_last_updated") private var profileLastUpdated: TimeInterval = 0
-    @StateObject private var benchmarkManager = BenchmarkDataManager()
+    private let benchmarkManager = BenchmarkDataManager.shared
     @State private var benchmarkComparisons: [UserBenchmarkComparison] = []
 
     var filteredItems: [TransactionItem] {
@@ -25,6 +25,13 @@ struct DashboardView: View {
             let itemMonth = Calendar.current.component(.month, from: itemDate)
             let itemYear = Calendar.current.component(.year, from: itemDate)
             return itemMonth == selectedMonth && itemYear == selectedYear
+        }
+    }
+
+    private var adjustedAmountsByName: [String: Double] {
+        filteredItems.reduce(into: [:]) { result, item in
+            let adjustedAmount = item.amount * frequencyMultiplier(from: item.frequency) / frequencyMultiplier(from: overallFrequency)
+            result[item.name, default: 0] += adjustedAmount
         }
     }
 
@@ -378,19 +385,17 @@ struct DashboardView: View {
     }
 
     func adjustedValue(for key: String) -> Double {
-        guard let item = filteredItems.first(where: { $0.name == key }) else { return 0 }
-        let freq = item.frequency
-        return item.amount * frequencyMultiplier(from: freq) / frequencyMultiplier(from: overallFrequency)
+        adjustedAmountsByName[key] ?? 0
     }
 
     func totalIncome() -> Double {
         let incomeKeys = ["salary", "interest", "investment", "otherIncome"]
-        return filteredItems.filter { incomeKeys.contains($0.name) }.reduce(0) { $0 + adjustedValue(for: $1.name) }
+        return incomeKeys.reduce(0) { $0 + (adjustedAmountsByName[$1] ?? 0) }
     }
 
     func totalSpending() -> Double {
         let spendingKeys = AppCategories.spending.values.flatMap { $0 }
-        return filteredItems.filter { spendingKeys.contains($0.name) }.reduce(0) { $0 + adjustedValue(for: $1.name) }
+        return spendingKeys.reduce(0) { $0 + (adjustedAmountsByName[$1] ?? 0) }
     }
 
     func remainingBudget() -> Double {

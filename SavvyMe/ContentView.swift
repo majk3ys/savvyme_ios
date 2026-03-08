@@ -10,15 +10,12 @@ import SwiftData
 
 struct MainTabView: View {
     @EnvironmentObject var appState: AppState
-    @State private var values: [String: String] = [:]
-    @State private var frequencies: [String: String] = [:]
     @State private var overallFrequency: String = "Annual"
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
     @State private var hasRestoredUserData = false
     
     @Environment(\.modelContext) private var modelContext
-    @Query private var allTransactions: [TransactionItem]
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -71,20 +68,6 @@ struct MainTabView: View {
         }
     }
     
-    private func computeBudgets(transactions: [TransactionItem]) -> [String: Double] {
-        // Sum the budget per category (using transaction.type as category)
-        var budgets: [String: Double] = [:]
-        
-        for transaction in transactions {
-            let category = transaction.type
-            if let budget = transaction.budget {
-                budgets[category, default: 0] += budget
-            }
-        }
-        
-        return budgets
-    }
-    
     // MARK: - User data sync
     private func restoreUserDataIfNeeded() async {
         guard !hasRestoredUserData else { return }
@@ -94,60 +77,6 @@ struct MainTabView: View {
         }
     }
     
-    let benchmarkManager = BenchmarkDataManager()
-
-    func hasUserProfile() -> Bool {
-        let state = UserDefaults.standard.string(forKey: "user_state") ?? "Any"
-        let adultsCount = UserDefaults.standard.string(forKey: "user_adults_count") ?? ""
-        let childrenCount = UserDefaults.standard.string(forKey: "user_children_count") ?? ""
-        let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
-        return state != "Any" && !adultsCount.isEmpty && !childrenCount.isEmpty && incomeRange != "Any"
-    }
-
-    func adjustedValue(for key: String, items: [TransactionItem], frequency: String) -> Double {
-        guard let item = items.first(where: { $0.name == key }) else { return 0 }
-        return item.amount * frequencyMultiplier(from: item.frequency) / frequencyMultiplier(from: frequency)
-    }
-    
-    private func fetchBenchmarks() -> [String: Double] {
-        guard hasUserProfile() else { return [:] }
-        
-        // Get user profile info from UserDefaults
-        let userState = UserDefaults.standard.string(forKey: "user_state") ?? "Any"
-        let adultsCount = Int(UserDefaults.standard.string(forKey: "user_adults_count") ?? "1") ?? 1
-        let childrenCount = Int(UserDefaults.standard.string(forKey: "user_children_count") ?? "0") ?? 0
-        let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
-        
-        // Build a userSpending dictionary placeholder: we only need the keys for benchmarks
-        var userSpending: [String: Double] = [:]
-        
-        // Build spending dictionary for benchmarks
-        for category in AppCategories.spending.values.flatMap({ $0 }) {
-            userSpending[category] = adjustedValue(
-                for: category,
-                items: allTransactions,        // <- pass transactions array here
-                frequency: overallFrequency    // <- pass frequency here
-            )
-        }
-        
-        // Get benchmark comparisons
-        let comparisons = benchmarkManager.getBenchmarkComparisons(
-            userState: userState,
-            adultsCount: adultsCount,
-            childrenCount: childrenCount,
-            incomeRange: incomeRange,
-            userSpending: userSpending,
-            overallFrequency: overallFrequency
-        )
-        
-        // Convert comparisons into [Category: Amount] dictionary by summing subcategories
-        var categoryBenchmarks: [String: Double] = [:]
-        for comparison in comparisons {
-            categoryBenchmarks[comparison.category, default: 0] += comparison.benchmarkAmount
-        }
-        
-        return categoryBenchmarks
-    }
 }
 
 extension Color {

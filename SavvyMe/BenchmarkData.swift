@@ -44,13 +44,19 @@ struct UserBenchmarkComparison {
 
 // MARK: - Benchmark Data Manager
 class BenchmarkDataManager: ObservableObject {
+    static let shared = BenchmarkDataManager()
+
     private var benchmarkData: [BenchmarkData] = []
-    
-    init() {
+    private var benchmarkDataBySubcategory: [String: [BenchmarkData]] = [:]
+
+    private init() {
         loadBenchmarkData()
     }
     
     private func loadBenchmarkData() {
+        benchmarkData.removeAll(keepingCapacity: true)
+        benchmarkDataBySubcategory.removeAll(keepingCapacity: true)
+
         guard let path = Bundle.main.path(forResource: "06_HOUSEHOLD_BENCHMARK_STATISTICS", ofType: "csv"),
               let content = try? String(contentsOfFile: path) else {
             print("Could not load benchmark data file")
@@ -65,6 +71,7 @@ class BenchmarkDataManager: ObservableObject {
             if !line.isEmpty {
                 if let data = parseBenchmarkLine(line) {
                     benchmarkData.append(data)
+                    benchmarkDataBySubcategory[data.expenseSubcategory, default: []].append(data)
                 }
             }
         }
@@ -185,45 +192,41 @@ class BenchmarkDataManager: ObservableObject {
         incomeRange: String,
         subcategory: String
     ) -> BenchmarkData? {
+        let candidates = benchmarkDataBySubcategory[subcategory] ?? []
+
         // First try exact match
-        var matches = benchmarkData.filter {
+        if let exact = candidates.first(where: {
             $0.state == state &&
             $0.numPersonsOver15 == adultsCount &&
             $0.numDependentsUnder15 == childrenCount &&
-            $0.disposableIncome == incomeRange &&
-            $0.expenseSubcategory == subcategory
+            $0.disposableIncome == incomeRange
+        }) {
+            return exact
         }
-                
-        if matches.isEmpty {
-            // Try without state constraint
-            matches = benchmarkData.filter {
-                $0.numPersonsOver15 == adultsCount &&
-                $0.numDependentsUnder15 == childrenCount &&
-                $0.disposableIncome == incomeRange &&
-                $0.expenseSubcategory == subcategory
-            }
+
+        // Try without state constraint
+        if let anyState = candidates.first(where: {
+            $0.numPersonsOver15 == adultsCount &&
+            $0.numDependentsUnder15 == childrenCount &&
+            $0.disposableIncome == incomeRange
+        }) {
+            return anyState
         }
-        
-        if matches.isEmpty {
-            // Try with any household composition
-            matches = benchmarkData.filter {
-                $0.disposableIncome == incomeRange &&
-                $0.expenseSubcategory == subcategory
-            }
+
+        // Try with any household composition
+        if let anyHousehold = candidates.first(where: {
+            $0.disposableIncome == incomeRange
+        }) {
+            return anyHousehold
         }
-       
-        if matches.isEmpty {
-            // Set national, single person household as default
-            matches = benchmarkData.filter {
-                $0.state == "Any" &&
-                $0.numPersonsOver15 == 1 &&
-                $0.numDependentsUnder15 == 0 &&
-                $0.disposableIncome == "Any" &&
-                $0.expenseSubcategory == subcategory
-            }
-        }
-        
-        return matches.first
+
+        // Set national, single person household as default
+        return candidates.first(where: {
+            $0.state == "Any" &&
+            $0.numPersonsOver15 == 1 &&
+            $0.numDependentsUnder15 == 0 &&
+            $0.disposableIncome == "Any"
+        })
     }
     
     func getBenchmarkComparisons(
