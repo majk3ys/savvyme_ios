@@ -1013,7 +1013,7 @@ struct AIInsightSection: View {
 
     func recommendationText() -> String {
         if selectedSubcategory != nil {
-            return "If this stays elevated next month, set a tighter cap for this subcategory and move spend to lower-priority areas."
+            return "If this stays elevated next month, try setting a tighter cap for this subcategory or follow some hacks in our blog!"
         }
 
         if selectedCategory != nil {
