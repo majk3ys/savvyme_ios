@@ -135,7 +135,11 @@ struct DashboardView: View {
                             selectedCategory: selectedCategory,
                             selectedSubcategory: selectedSubcategory,
                             benchmarkComparisons: benchmarkComparisons,
-                            getMonthlyTrendChange: getMonthlyTrendChange
+                            getThreeMonthTrendChange: getThreeMonthTrendChange,
+                            currentAmountForKey: adjustedValue,
+                            getBudgetForSubcategory: getBudgetForSubcategory,
+                            getCategoryBudgetTotal: getCategoryBudgetTotal,
+                            categorySpending: categorySpending
                         )
                     } else {
                         VStack(spacing: 16) {
@@ -382,6 +386,42 @@ struct DashboardView: View {
         guard lastTotal > 0 else { return nil }
         
         return ((currentTotal - lastTotal) / lastTotal) * 100
+    }
+
+    func getThreeMonthTrendChange(for key: String) -> Double? {
+        let calendar = Calendar.current
+        let components = DateComponents(year: selectedYear, month: selectedMonth, day: 1)
+        guard let selectedDate = calendar.date(from: components) else { return nil }
+
+        func monthlyTotal(for date: Date) -> Double {
+            let year = calendar.component(.year, from: date)
+            let month = calendar.component(.month, from: date)
+
+            return allItems
+                .filter { item in
+                    guard let itemDate = item.date else { return false }
+                    let itemYear = calendar.component(.year, from: itemDate)
+                    let itemMonth = calendar.component(.month, from: itemDate)
+                    return item.name == key && itemYear == year && itemMonth == month
+                }
+                .reduce(0) { partialResult, item in
+                    let annualizedAmount = item.amount * frequencyMultiplier(from: item.frequency)
+                    return partialResult + (annualizedAmount / 12.0)
+                }
+        }
+
+        let currentTotal = monthlyTotal(for: selectedDate)
+        guard currentTotal > 0 else { return nil }
+
+        let previousThreeMonths = (1...3).compactMap {
+            calendar.date(byAdding: .month, value: -$0, to: selectedDate)
+        }
+
+        let previousTotals = previousThreeMonths.map(monthlyTotal)
+        let averagePrevious = previousTotals.reduce(0, +) / Double(previousTotals.count)
+
+        guard averagePrevious > 0 else { return nil }
+        return ((currentTotal - averagePrevious) / averagePrevious) * 100
     }
 
     func adjustedValue(for key: String) -> Double {
@@ -905,7 +945,11 @@ struct AIInsightSection: View {
     let selectedCategory: String?
     let selectedSubcategory: String?
     let benchmarkComparisons: [UserBenchmarkComparison]
-    let getMonthlyTrendChange: (String) -> Double? // function returning percentage change month-to-month for a key (category or subcategory)
+    let getThreeMonthTrendChange: (String) -> Double?
+    let currentAmountForKey: (String) -> Double
+    let getBudgetForSubcategory: (String) -> Double
+    let getCategoryBudgetTotal: (String) -> Double
+    let categorySpending: () -> [String: Double]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -933,54 +977,154 @@ struct AIInsightSection: View {
         .padding(.horizontal, 0)
         .padding(.vertical, 8)
     }
-    
+
     func insightText() -> String {
-        /*if let key = selectedSubcategory ?? selectedCategory {
-            if let comp = benchmarkComparisons.first(where: { $0.subcategory == key || $0.category == key }) {
-                let benchmarkDiff = comp.difference
-                let trendChangePercent = getMonthlyTrendChange(key) ?? 0
+        if let subcategory = selectedSubcategory {
+            return subcategoryInsight(for: subcategory)
+        }
 
-                var messages = [String]()
+        if let category = selectedCategory {
+            return categoryInsight(for: category)
+        }
 
-                // Benchmark overspending/underspending
-                if benchmarkDiff > 0 {
-                    messages.append("You're spending \(formattedPercent(benchmarkDiff)) more than similar households in \(displayNames[key] ?? key).")
-                } else if benchmarkDiff < 0 {
-                    messages.append("You're spending \(formattedPercent(-benchmarkDiff)) less than similar households in \(displayNames[key] ?? key).")
-                } else {
-                    messages.append("Your spending in \(displayNames[key] ?? key) aligns with similar households.")
-                }
-
-                // Trend change messages
-                if abs(trendChangePercent) >= 10 {
-                    if trendChangePercent > 0 {
-                        messages.append("Spending increased by \(formattedPercent(trendChangePercent)) compared to last month.")
-                    } else {
-                        messages.append("Spending decreased by \(formattedPercent(-trendChangePercent)) compared to last month.")
-                    }
-                }
-
-                return messages.joined(separator: " ")
-            } else {
-                return "No benchmark data available for \(displayNames[key] ?? key)."
-            }
-        } else {
-            return "Review your overall spending and compare against similar households to find savings opportunities."
-        }*/
-        return "AI insight/recommendation"
+        return overallInsight()
     }
 
     func recommendationText() -> String {
-        return "Placeholder"
-        /*if let key = selectedSubcategory ?? selectedCategory {
-            return "Consider reviewing your recent \(displayNames[key] ?? key) expenses and adjusting if necessary to optimize your budget."
-        } else {
-            return "Set spending targets and check categories with highest spending regularly."
-        }*/
+        if selectedSubcategory != nil {
+            return "If this stays elevated next month, set a tighter cap for this subcategory and move spend to lower-priority areas."
+        }
+
+        if selectedCategory != nil {
+            return "Focus first on the top one or two subcategories in this category—they usually give the biggest savings fastest."
+        }
+
+        return "Review the highest category each month, and set or update budgets where you are consistently above benchmarks."
     }
 
     private func formattedPercent(_ value: Double) -> String {
         String(format: "%.0f%%", abs(value * 100))
+    }
+
+    private func subcategoryInsight(for key: String) -> String {
+        let name = AppCategories.spendingDisplayNames[key] ?? key
+        var statements: [String] = []
+
+        let current = currentAmountForKey(key)
+        if current > 0 {
+            statements.append("\(name) is currently \(formattedCurrency(current)).")
+        }
+
+        if let trend = getThreeMonthTrendChange(key), trend >= 20 {
+            statements.append("This is up \(formattedPercent(trend)) versus your last 3-month average.")
+        }
+
+        let budget = getBudgetForSubcategory(key)
+        if budget > 0 {
+            let delta = ((current - budget) / budget) * 100
+            if delta >= 10 {
+                statements.append("It is \(formattedPercent(delta)) above your budget.")
+            }
+        }
+
+        if let comparison = benchmarkComparisons.first(where: { $0.subcategory == key }), comparison.percentageDifference >= 10 {
+            statements.append("You're spending \(formattedPercent(comparison.percentageDifference)) above similar households.")
+        }
+
+        if statements.isEmpty {
+            return "\(name) spend is stable and close to your recent baseline."
+        }
+
+        return statements.joined(separator: " ")
+    }
+
+    private func categoryInsight(for category: String) -> String {
+        guard let subcategories = AppCategories.spending[category] else {
+            return "No insights are available for this category yet."
+        }
+
+        let subSpending = subcategories
+            .map { ($0, currentAmountForKey($0)) }
+            .filter { $0.1 > 0 }
+            .sorted { $0.1 > $1.1 }
+
+        let categoryTotal = subSpending.reduce(0) { $0 + $1.1 }
+        var statements: [String] = []
+
+        if let top = subSpending.first, categoryTotal > 0 {
+            let share = (top.1 / categoryTotal) * 100
+            let topName = AppCategories.spendingDisplayNames[top.0] ?? top.0
+            statements.append("\(topName) is the biggest driver at \(formattedPercent(share)) of \(category) spend.")
+        }
+
+        let categoryBudget = getCategoryBudgetTotal(category)
+        if categoryBudget > 0, categoryTotal > categoryBudget {
+            let over = ((categoryTotal - categoryBudget) / categoryBudget) * 100
+            statements.append("\(category) is \(formattedPercent(over)) above your category budget.")
+        }
+
+        let benchmarkItems = benchmarkComparisons.filter { $0.category == category }
+        let benchmarkTotal = benchmarkItems.reduce(0) { $0 + $1.benchmarkAmount }
+        let userTotal = benchmarkItems.reduce(0) { $0 + $1.userAmount }
+        if benchmarkTotal > 0 {
+            let diff = ((userTotal - benchmarkTotal) / benchmarkTotal) * 100
+            if diff >= 10 {
+                statements.append("You're spending \(formattedPercent(diff)) above benchmark households in this category.")
+            }
+        }
+
+        let spikingSubcategory = subcategories
+            .map { ($0, getThreeMonthTrendChange($0) ?? 0) }
+            .max(by: { $0.1 < $1.1 })
+
+        if let spike = spikingSubcategory, spike.1 >= 25 {
+            let spikeName = AppCategories.spendingDisplayNames[spike.0] ?? spike.0
+            statements.append("\(spikeName) shows a sudden spike of \(formattedPercent(spike.1)) vs the last 3-month average.")
+        }
+
+        return statements.isEmpty
+            ? "\(category) spend looks steady with no major risk flags this month."
+            : statements.joined(separator: " ")
+    }
+
+    private func overallInsight() -> String {
+        let categories = categorySpending()
+        let sortedCategories = categories.sorted { $0.value > $1.value }
+        let totalSpending = sortedCategories.reduce(0) { $0 + $1.value }
+        var statements: [String] = []
+
+        if let topCategory = sortedCategories.first, totalSpending > 0 {
+            let share = (topCategory.value / totalSpending) * 100
+            statements.append("\(topCategory.key) is your largest spend category at \(formattedPercent(share)) of total spending.")
+        }
+
+        if let highestBenchmarkGap = benchmarkComparisons.max(by: { $0.percentageDifference < $1.percentageDifference }),
+           highestBenchmarkGap.percentageDifference >= 10 {
+            let subName = AppCategories.spendingDisplayNames[highestBenchmarkGap.subcategory] ?? highestBenchmarkGap.subcategory
+            statements.append("\(subName) is \(formattedPercent(highestBenchmarkGap.percentageDifference)) above similar-household benchmark.")
+        }
+
+        let allSubcategories = AppCategories.spending.values.flatMap { $0 }
+        let biggestTrend = allSubcategories
+            .map { ($0, getThreeMonthTrendChange($0) ?? 0) }
+            .max(by: { $0.1 < $1.1 })
+
+        if let trend = biggestTrend, trend.1 >= 25 {
+            let name = AppCategories.spendingDisplayNames[trend.0] ?? trend.0
+            statements.append("Watch \(name): it's up \(formattedPercent(trend.1)) against its 3-month average.")
+        }
+
+        return statements.isEmpty
+            ? "Your spending is broadly stable this month, with no major spikes versus recent history."
+            : statements.joined(separator: " ")
+    }
+
+    private func formattedCurrency(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "AUD"
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
     }
 }
 
@@ -2191,4 +2335,3 @@ struct CircularProgressView: View {
         }
     }
 }
-
