@@ -391,31 +391,10 @@ struct DashboardView: View {
     }
 
     func getThreeMonthTrendChange(for key: String) -> Double? {
-        let calendar = Calendar.current
-        let components = DateComponents(year: selectedYear, month: selectedMonth, day: 1)
-        guard let selectedDate = calendar.date(from: components) else { return nil }
-
-        func monthlyTotal(for date: Date) -> Double {
-            let year = calendar.component(.year, from: date)
-            let month = calendar.component(.month, from: date)
-
-            return allItems
-                .filter { item in
-                    guard let itemDate = item.date else { return false }
-                    let itemYear = calendar.component(.year, from: itemDate)
-                    let itemMonth = calendar.component(.month, from: itemDate)
-                    return item.name == key && itemYear == year && itemMonth == month
-                }
-                .reduce(0) { partialResult, item in
-                    let annualizedAmount = item.amount * frequencyMultiplier(from: item.frequency)
-                    return partialResult + (annualizedAmount / 12.0)
-                }
-        }
-
-        let currentTotal = monthlyTotal(for: selectedDate)
+        let currentTotal = adjustedValue(for: key)
         guard currentTotal > 0 else { return nil }
-
         guard let averagePrevious = getThreeMonthAverage(for: key), averagePrevious > 0 else { return nil }
+
         return ((currentTotal - averagePrevious) / averagePrevious) * 100
     }
 
@@ -446,9 +425,13 @@ struct DashboardView: View {
         }
 
         let previousTotals = previousThreeMonths.map(monthlyTotal)
-        let averagePrevious = previousTotals.reduce(0, +) / Double(previousTotals.count)
+        let averageMonthly = previousTotals.reduce(0, +) / Double(previousTotals.count)
 
-        return averagePrevious > 0 ? averagePrevious : nil
+        guard averageMonthly > 0 else { return nil }
+
+        // Convert monthly baseline into the currently selected dashboard frequency.
+        let convertedAverage = averageMonthly * frequencyMultiplier(from: "Monthly") / frequencyMultiplier(from: overallFrequency)
+        return convertedAverage
     }
 
     func adjustedValue(for key: String) -> Double {
@@ -1045,7 +1028,9 @@ struct AIInsightSection: View {
             return "per week"
         case "Fortnightly":
             return "per fortnight"
-        case "Yearly":
+        case "Quarterly":
+            return "per quarter"
+        case "Annual":
             return "per year"
         default:
             return "per month"
@@ -1063,7 +1048,7 @@ struct AIInsightSection: View {
 
         if let trend = getThreeMonthTrendChange(key), trend >= 20 {
             let averageText = getThreeMonthAverage(key).map { formattedCurrency($0) } ?? "$0"
-            statements.append("This is up \(formattedPercentValue(trend)) versus your last 3-month average of \(averageText).")
+            statements.append("This is up \(formattedPercentValue(trend)) versus your last 3-month average of \(averageText) \(frequencySuffix()).")
         }
 
         let budget = getBudgetForSubcategory(key)
@@ -1127,7 +1112,7 @@ struct AIInsightSection: View {
         if let spike = spikingSubcategory, spike.1 >= 25 {
             let spikeName = AppCategories.spendingDisplayNames[spike.0] ?? spike.0
             let averageText = getThreeMonthAverage(spike.0).map { formattedCurrency($0) } ?? "$0"
-            statements.append("\(spikeName) shows a sudden spike of \(formattedPercentValue(spike.1)) against its 3-month average of \(averageText).")
+            statements.append("\(spikeName) shows a sudden spike of \(formattedPercentValue(spike.1)) against its 3-month average of \(averageText) \(frequencySuffix()).")
         }
 
         return statements.isEmpty
@@ -1160,7 +1145,7 @@ struct AIInsightSection: View {
         if let trend = biggestTrend, trend.1 >= 25 {
             let name = AppCategories.spendingDisplayNames[trend.0] ?? trend.0
             let averageText = getThreeMonthAverage(trend.0).map { formattedCurrency($0) } ?? "$0"
-            statements.append("Watch \(name): it's up \(formattedPercentValue(trend.1)) against its 3-month average of \(averageText).")
+            statements.append("Watch \(name): it's up \(formattedPercentValue(trend.1)) against its 3-month average of \(averageText) \(frequencySuffix()).")
         }
 
         return statements.isEmpty
