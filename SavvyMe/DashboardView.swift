@@ -1002,8 +1002,12 @@ struct AIInsightSection: View {
         return "Review the highest category each month, and set or update budgets where you are consistently above benchmarks."
     }
 
-    private func formattedPercent(_ value: Double) -> String {
-        String(format: "%.0f%%", abs(value * 100))
+    private func formattedPercentFromRatio(_ value: Double) -> String {
+        String(format: "%.1f%%", abs(value * 100))
+    }
+
+    private func formattedPercentValue(_ percentValue: Double) -> String {
+        String(format: "%.1f%%", abs(percentValue))
     }
 
     private func subcategoryInsight(for key: String) -> String {
@@ -1016,19 +1020,19 @@ struct AIInsightSection: View {
         }
 
         if let trend = getThreeMonthTrendChange(key), trend >= 20 {
-            statements.append("This is up \(formattedPercent(trend)) versus your last 3-month average.")
+            statements.append("This is up \(formattedPercentValue(trend)) versus your last 3-month average.")
         }
 
         let budget = getBudgetForSubcategory(key)
         if budget > 0 {
             let delta = ((current - budget) / budget) * 100
             if delta >= 10 {
-                statements.append("It is \(formattedPercent(delta)) above your budget.")
+                statements.append("It is \(formattedPercentValue(delta)) above your budget.")
             }
         }
 
         if let comparison = benchmarkComparisons.first(where: { $0.subcategory == key }), comparison.percentageDifference >= 10 {
-            statements.append("You're spending \(formattedPercent(comparison.percentageDifference)) above similar households.")
+            statements.append("You're spending \(formattedPercentValue(comparison.percentageDifference)) above similar households.")
         }
 
         if statements.isEmpty {
@@ -1052,15 +1056,15 @@ struct AIInsightSection: View {
         var statements: [String] = []
 
         if let top = subSpending.first, categoryTotal > 0 {
-            let share = (top.1 / categoryTotal) * 100
+            let share = top.1 / categoryTotal
             let topName = AppCategories.spendingDisplayNames[top.0] ?? top.0
-            statements.append("\(topName) is the biggest driver at \(formattedPercent(share)) of \(category) spend.")
+            statements.append("\(topName) is the biggest driver at \(formattedPercentFromRatio(share)) of \(category) spend.")
         }
 
         let categoryBudget = getCategoryBudgetTotal(category)
         if categoryBudget > 0, categoryTotal > categoryBudget {
             let over = ((categoryTotal - categoryBudget) / categoryBudget) * 100
-            statements.append("\(category) is \(formattedPercent(over)) above your category budget.")
+            statements.append("\(category) is \(formattedPercentValue(over)) above your category budget.")
         }
 
         let benchmarkItems = benchmarkComparisons.filter { $0.category == category }
@@ -1069,7 +1073,7 @@ struct AIInsightSection: View {
         if benchmarkTotal > 0 {
             let diff = ((userTotal - benchmarkTotal) / benchmarkTotal) * 100
             if diff >= 10 {
-                statements.append("You're spending \(formattedPercent(diff)) above benchmark households in this category.")
+                statements.append("You're spending \(formattedPercentValue(diff)) above benchmark households in this category.")
             }
         }
 
@@ -1079,7 +1083,7 @@ struct AIInsightSection: View {
 
         if let spike = spikingSubcategory, spike.1 >= 25 {
             let spikeName = AppCategories.spendingDisplayNames[spike.0] ?? spike.0
-            statements.append("\(spikeName) shows a sudden spike of \(formattedPercent(spike.1)) vs the last 3-month average.")
+            statements.append("\(spikeName) shows a sudden spike of \(formattedPercentValue(spike.1)) vs the last 3-month average.")
         }
 
         return statements.isEmpty
@@ -1094,14 +1098,14 @@ struct AIInsightSection: View {
         var statements: [String] = []
 
         if let topCategory = sortedCategories.first, totalSpending > 0 {
-            let share = (topCategory.value / totalSpending) * 100
-            statements.append("\(topCategory.key) is your largest spend category at \(formattedPercent(share)) of total spending.")
+            let share = topCategory.value / totalSpending
+            statements.append("\(topCategory.key) is your largest spend category at \(formattedPercentFromRatio(share)) of total spending.")
         }
 
         if let highestBenchmarkGap = benchmarkComparisons.max(by: { $0.percentageDifference < $1.percentageDifference }),
            highestBenchmarkGap.percentageDifference >= 10 {
             let subName = AppCategories.spendingDisplayNames[highestBenchmarkGap.subcategory] ?? highestBenchmarkGap.subcategory
-            statements.append("\(subName) is \(formattedPercent(highestBenchmarkGap.percentageDifference)) above similar-household benchmark.")
+            statements.append("\(subName) is \(formattedPercentValue(highestBenchmarkGap.percentageDifference)) above similar-household benchmark.")
         }
 
         let allSubcategories = AppCategories.spending.values.flatMap { $0 }
@@ -1111,7 +1115,7 @@ struct AIInsightSection: View {
 
         if let trend = biggestTrend, trend.1 >= 25 {
             let name = AppCategories.spendingDisplayNames[trend.0] ?? trend.0
-            statements.append("Watch \(name): it's up \(formattedPercent(trend.1)) against its 3-month average.")
+            statements.append("Watch \(name): it's up \(formattedPercentValue(trend.1)) against its 3-month average.")
         }
 
         return statements.isEmpty
