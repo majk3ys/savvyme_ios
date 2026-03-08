@@ -970,9 +970,18 @@ struct AIInsightSection: View {
                     .foregroundColor(.yellow)
                     .font(.title3)
 
-                Text(insightText())
-                    .font(.body)
-                    .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(insightLines().enumerated()), id: \.offset) { _, line in
+                        HStack(alignment: .top, spacing: 6) {
+                            Text("•")
+                                .font(.body)
+                                .foregroundColor(.primary)
+                            Text(line)
+                                .font(.body)
+                                .foregroundColor(.primary)
+                        }
+                    }
+                }
             }
             .padding(.top)
 
@@ -990,7 +999,7 @@ struct AIInsightSection: View {
         .padding(.vertical, 8)
     }
 
-    func insightText() -> String {
+    func insightLines() -> [String] {
         if let subcategory = selectedSubcategory {
             return subcategoryInsight(for: subcategory)
         }
@@ -1037,7 +1046,7 @@ struct AIInsightSection: View {
         }
     }
 
-    private func subcategoryInsight(for key: String) -> String {
+    private func subcategoryInsight(for key: String) -> [String] {
         let name = AppCategories.spendingDisplayNames[key] ?? key
         var statements: [String] = []
 
@@ -1064,15 +1073,15 @@ struct AIInsightSection: View {
         }
 
         if statements.isEmpty {
-            return "\(name) spend is stable and close to your recent baseline."
+            return ["\(name) spend is stable and close to your recent baseline."]
         }
 
-        return statements.joined(separator: " ")
+        return statements
     }
 
-    private func categoryInsight(for category: String) -> String {
+    private func categoryInsight(for category: String) -> [String] {
         guard let subcategories = AppCategories.spending[category] else {
-            return "No insights are available for this category yet."
+            return ["No insights are available for this category yet."]
         }
 
         let subSpending = subcategories
@@ -1116,11 +1125,11 @@ struct AIInsightSection: View {
         }
 
         return statements.isEmpty
-            ? "\(category) spend looks steady with no major risk flags this month."
-            : statements.joined(separator: " ")
+            ? ["\(category) spend looks steady with no major risk flags this month."]
+            : statements
     }
 
-    private func overallInsight() -> String {
+    private func overallInsight() -> [String] {
         let categories = categorySpending()
         let sortedCategories = categories.sorted { $0.value > $1.value }
         let totalSpending = sortedCategories.reduce(0) { $0 + $1.value }
@@ -1149,8 +1158,8 @@ struct AIInsightSection: View {
         }
 
         return statements.isEmpty
-            ? "Your spending is broadly stable this month, with no major spikes versus recent history."
-            : statements.joined(separator: " ")
+            ? ["Your spending is broadly stable this month, with no major spikes versus recent history."]
+            : statements
     }
 
     private func formattedCurrency(_ value: Double) -> String {
