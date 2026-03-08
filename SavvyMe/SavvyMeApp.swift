@@ -16,8 +16,6 @@ struct SavvyMeApp: App {
     // ✅ Request notification permission on app launch
     init() {
         FirebaseApp.configure()
-        // ✅ All notification setup handled in NotificationManager
-        NotificationManager.shared.requestPermission()
         // Remove the default input assistant bar to avoid UIKit constraint warnings
         let textFieldAppearance = UITextField.appearance()
         textFieldAppearance.inputAssistantItem.leadingBarButtonGroups = []
@@ -76,16 +74,5 @@ struct ColorSchemeToggleButton: View {
             // Initialize with system setting when first shown after login
             appState.initializeColorScheme(systemColorScheme: systemColorScheme)
         }
-    }
-}
-
-
-class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
-    static let shared = NotificationDelegate()
-    
-    func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                willPresent notification: UNNotification,
-                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound])
     }
 }

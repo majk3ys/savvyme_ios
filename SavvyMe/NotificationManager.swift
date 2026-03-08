@@ -22,6 +22,8 @@ enum NotificationType {
 // MARK: - Notification Manager
 class NotificationManager : NSObject {
     static let shared = NotificationManager()
+    private let notificationsEnabled = false
+
     private override init() {
         super.init()
         UNUserNotificationCenter.current().delegate = self
@@ -29,6 +31,13 @@ class NotificationManager : NSObject {
     
     // MARK: 1️⃣ Request Notification Permission
     func requestPermission() {
+        guard notificationsEnabled else {
+            UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+            UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+            print("Notifications are currently disabled.")
+            return
+        }
+
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error = error {
                 print("Notification permission error: \(error)")
@@ -101,6 +110,11 @@ class NotificationManager : NSObject {
     
     // MARK: 3️⃣ Check All Rules
     func checkRules(transactions: [TransactionItem], goals: [Goal], budgets: [String: Double], benchmarks: [String: Double]) {
+        guard notificationsEnabled else {
+            UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+            return
+        }
+
         checkDataEntryReminder(transactions: transactions)
         checkOverspending(transactions: transactions, budgets: budgets, benchmarks: benchmarks)
         checkPositiveReinforcement(transactions: transactions, budgets: budgets, benchmarks: benchmarks)
