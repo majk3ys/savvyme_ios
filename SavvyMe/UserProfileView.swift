@@ -129,23 +129,28 @@ struct UserProfileView: View {
     
     // MARK: - Helper Functions
     var personalInfoSection: some View {
-        Section(header: Text("Personal Information")) {
-            Menu {
-                Picker("Age", selection: $age) {
-                    ForEach(15...110, id: \.self) { count in
-                        Text("\(count)").tag("\(count)")
+        Section(header: Text("Personal Information"),
+                footer: Text("Use number input for faster entry. Leave fields blank if you prefer not to share.")) {
+            HStack {
+                Text("Age")
+                Spacer()
+                TextField("e.g. 32", text: $age)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 90)
+                    .onChange(of: age) { newValue in
+                        age = numericPrefix(from: newValue, maxLength: 3)
+                        validateForm()
                     }
-                }
-            } label: {
-                HStack {
-                    Text("Age")
-                    Spacer()
-                    Text("\(age)")
-                        .fontWeight(.medium)
-                }
-                .foregroundColor(.nav)
             }
-            .onChange(of: age) { _ in validateForm() }
+
+            if !age.isEmpty,
+               let ageValue = Int(age),
+               !(1...120).contains(ageValue) {
+                Text("Enter a valid age between 1 and 120")
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
 
             Menu {
                 Picker("State/Territory", selection: $selectedState) {
@@ -169,7 +174,17 @@ struct UserProfileView: View {
                 TextField("4-digit postcode", text: $postcode)
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
-                    .onChange(of: postcode) { _ in validateForm() }
+                    .frame(maxWidth: 120)
+                    .onChange(of: postcode) { newValue in
+                        postcode = numericPrefix(from: newValue, maxLength: 4)
+                        validateForm()
+                    }
+            }
+
+            if !postcode.isEmpty && (postcode.count != 4 || Int(postcode) == nil) {
+                Text("Postcode must be 4 digits")
+                    .font(.caption)
+                    .foregroundColor(.red)
             }
         }
     }
@@ -187,51 +202,60 @@ struct UserProfileView: View {
                 .pickerStyle(SegmentedPickerStyle())
             }
 
-            Menu {
-                Picker("Adults (15+ years)", selection: $adultsCount) {
-                    ForEach(1...10, id: \.self) { count in
-                        Text("\(count)").tag("\(count)")
+            HStack {
+                Text("Adults (15+ years)")
+                Spacer()
+                TextField("e.g. 2", text: $adultsCount)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 80)
+                    .onChange(of: adultsCount) { newValue in
+                        adultsCount = numericPrefix(from: newValue, maxLength: 2)
+                        validateForm()
                     }
-                }
-            } label: {
-                HStack {
-                    Text("Adults (15+ years)")
-                    Spacer()
-                    Text("\(adultsCount)")
-                        .fontWeight(.medium)
-                }
-                .foregroundColor(.nav)
             }
-            .onChange(of: adultsCount) { _ in validateForm() }
+
+            if !adultsCount.isEmpty,
+               let adultsValue = Int(adultsCount),
+               adultsValue < 1 {
+                Text("At least 1 adult is required")
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
             
-            Menu {
-                Picker("Children (under 15)", selection: $childrenCount) {
-                    ForEach(0...20, id: \.self) { count in
-                        Text("\(count)").tag("\(count)")
+            HStack {
+                Text("Children (under 15)")
+                Spacer()
+                TextField("e.g. 0", text: $childrenCount)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 80)
+                    .onChange(of: childrenCount) { newValue in
+                        childrenCount = numericPrefix(from: newValue, maxLength: 2)
+                        validateForm()
                     }
-                }
-            } label: {
-                HStack {
-                    Text("Children (under 15)")
-                    Spacer()
-                    Text("\(childrenCount)")
-                        .fontWeight(.medium)
-                }
-                .foregroundColor(.nav)
             }
-            .onChange(of: childrenCount) { _ in validateForm() }
         }
     }
 
     var incomeSection: some View {
         Section(header: Text("Gross Annual Income"),
                 footer: Text("Annual household income range")) {
-            Picker("Income Range", selection: $selectedIncomeRange) {
-                ForEach(incomeDisplayOptions, id: \.self) { option in
-                    Text(option).tag(option)
+            Menu {
+                Picker("Income Range", selection: $selectedIncomeRange) {
+                    ForEach(incomeDisplayOptions, id: \.self) { option in
+                        Text(option).tag(option)
+                    }
                 }
+            } label: {
+                HStack {
+                    Text("Income range")
+                    Spacer()
+                    Text(selectedIncomeRange)
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(.nav)
             }
-            .pickerStyle(WheelPickerStyle())
         }
     }
 
@@ -243,6 +267,10 @@ struct UserProfileView: View {
         let childrenValid = childrenCount.isEmpty || (Int(childrenCount) != nil && Int(childrenCount)! >= 0)
         
         isFormValid = ageValid && postcodeValid && adultsValid && childrenValid
+    }
+
+    private func numericPrefix(from input: String, maxLength: Int) -> String {
+        String(input.filter(\.isNumber).prefix(maxLength))
     }
 
     private func saveProfile() {
