@@ -119,12 +119,23 @@ struct AuthenticationView: View {
                     VStack(spacing: 14) {
                         ZStack {
                             Circle()
-                                .fill(ColorTheme.primary.opacity(0.14))
-                                .frame(width: 80, height: 80)
+                                .fill(Color(.systemBackground).opacity(0.95))
+                                .frame(width: 84, height: 84)
+                                .overlay(
+                                    Circle()
+                                        .stroke(ColorTheme.primary.opacity(0.28), lineWidth: 2)
+                                )
+                                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
 
                             Image(systemName: "chart.pie.fill")
-                                .font(.system(size: 30, weight: .semibold))
-                                .foregroundColor(ColorTheme.primary)
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [ColorTheme.secondary, ColorTheme.primary],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
                         }
 
                         Text("Welcome to SavvyMe")
@@ -201,13 +212,15 @@ struct AuthenticationView: View {
                         } label: {
                             Text("Create Account")
                                 .fontWeight(.semibold)
-                                .foregroundColor(ColorTheme.primary)
+                                .foregroundColor(ColorTheme.secondary)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 52)
+                                .background(Color(.systemBackground).opacity(0.92))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 14)
-                                        .stroke(ColorTheme.primary.opacity(0.55), lineWidth: 1.5)
+                                        .stroke(ColorTheme.secondary.opacity(0.75), lineWidth: 1.8)
                                 )
+                                .cornerRadius(14)
                         }
                         .disabled(isSubmitting || email.isEmpty || password.isEmpty)
                         .opacity((isSubmitting || email.isEmpty || password.isEmpty) ? 0.75 : 1)
@@ -237,7 +250,7 @@ struct AuthenticationView: View {
         } catch {
             // logAuthError(error, context: "login")
             await MainActor.run {
-                errorMessage = error.localizedDescription
+                errorMessage = authErrorMessage(from: error)
             }
         }
 
@@ -258,12 +271,38 @@ struct AuthenticationView: View {
         } catch {
             // logAuthError(error, context: "register")
             await MainActor.run {
-                errorMessage = error.localizedDescription
+                errorMessage = authErrorMessage(from: error)
             }
         }
 
         await MainActor.run {
             isSubmitting = false
+        }
+    }
+
+
+    private func authErrorMessage(from error: Error) -> String {
+        guard let authErrorCode = AuthErrorCode(rawValue: (error as NSError).code) else {
+            return "We couldn't complete that request. Please try again."
+        }
+
+        switch authErrorCode {
+        case .wrongPassword, .invalidCredential:
+            return "That email or password looks incorrect. Please try again."
+        case .invalidEmail:
+            return "Please enter a valid email address."
+        case .userNotFound:
+            return "We couldn't find an account with that email. Try creating one."
+        case .emailAlreadyInUse:
+            return "An account with this email already exists. Try logging in instead."
+        case .weakPassword:
+            return "Your password is too weak. Use at least 6 characters."
+        case .networkError:
+            return "You're offline right now. Check your connection and try again."
+        case .tooManyRequests:
+            return "Too many attempts. Please wait a moment before trying again."
+        default:
+            return "Authentication failed. Please check your details and try again."
         }
     }
     
