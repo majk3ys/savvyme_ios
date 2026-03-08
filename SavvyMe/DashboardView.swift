@@ -139,7 +139,9 @@ struct DashboardView: View {
                             currentAmountForKey: adjustedValue,
                             getBudgetForSubcategory: getBudgetForSubcategory,
                             getCategoryBudgetTotal: getCategoryBudgetTotal,
-                            categorySpending: categorySpending
+                            categorySpending: categorySpending,
+                            getThreeMonthAverage: getThreeMonthAverage,
+                            selectedFrequency: overallFrequency
                         )
                     } else {
                         VStack(spacing: 16) {
@@ -413,6 +415,32 @@ struct DashboardView: View {
         let currentTotal = monthlyTotal(for: selectedDate)
         guard currentTotal > 0 else { return nil }
 
+        guard let averagePrevious = getThreeMonthAverage(for: key), averagePrevious > 0 else { return nil }
+        return ((currentTotal - averagePrevious) / averagePrevious) * 100
+    }
+
+    func getThreeMonthAverage(for key: String) -> Double? {
+        let calendar = Calendar.current
+        let components = DateComponents(year: selectedYear, month: selectedMonth, day: 1)
+        guard let selectedDate = calendar.date(from: components) else { return nil }
+
+        func monthlyTotal(for date: Date) -> Double {
+            let year = calendar.component(.year, from: date)
+            let month = calendar.component(.month, from: date)
+
+            return allItems
+                .filter { item in
+                    guard let itemDate = item.date else { return false }
+                    let itemYear = calendar.component(.year, from: itemDate)
+                    let itemMonth = calendar.component(.month, from: itemDate)
+                    return item.name == key && itemYear == year && itemMonth == month
+                }
+                .reduce(0) { partialResult, item in
+                    let annualizedAmount = item.amount * frequencyMultiplier(from: item.frequency)
+                    return partialResult + (annualizedAmount / 12.0)
+                }
+        }
+
         let previousThreeMonths = (1...3).compactMap {
             calendar.date(byAdding: .month, value: -$0, to: selectedDate)
         }
@@ -420,8 +448,7 @@ struct DashboardView: View {
         let previousTotals = previousThreeMonths.map(monthlyTotal)
         let averagePrevious = previousTotals.reduce(0, +) / Double(previousTotals.count)
 
-        guard averagePrevious > 0 else { return nil }
-        return ((currentTotal - averagePrevious) / averagePrevious) * 100
+        return averagePrevious > 0 ? averagePrevious : nil
     }
 
     func adjustedValue(for key: String) -> Double {
@@ -950,6 +977,8 @@ struct AIInsightSection: View {
     let getBudgetForSubcategory: (String) -> Double
     let getCategoryBudgetTotal: (String) -> Double
     let categorySpending: () -> [String: Double]
+    let getThreeMonthAverage: (String) -> Double?
+    let selectedFrequency: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1003,11 +1032,24 @@ struct AIInsightSection: View {
     }
 
     private func formattedPercentFromRatio(_ value: Double) -> String {
-        String(format: "%.1f%%", abs(value * 100))
+        String(format: "%.0f%%", abs(value * 100))
     }
 
     private func formattedPercentValue(_ percentValue: Double) -> String {
-        String(format: "%.1f%%", abs(percentValue))
+        String(format: "%.0f%%", abs(percentValue))
+    }
+
+    private func frequencySuffix() -> String {
+        switch selectedFrequency {
+        case "Weekly":
+            return "per week"
+        case "Fortnightly":
+            return "per fortnight"
+        case "Yearly":
+            return "per year"
+        default:
+            return "per month"
+        }
     }
 
     private func subcategoryInsight(for key: String) -> String {
@@ -1016,11 +1058,12 @@ struct AIInsightSection: View {
 
         let current = currentAmountForKey(key)
         if current > 0 {
-            statements.append("\(name) is currently \(formattedCurrency(current)).")
+            statements.append("\(name) is currently \(formattedCurrency(current)) \(frequencySuffix()).")
         }
 
         if let trend = getThreeMonthTrendChange(key), trend >= 20 {
-            statements.append("This is up \(formattedPercentValue(trend)) versus your last 3-month average.")
+            let averageText = getThreeMonthAverage(key).map { formattedCurrency($0) } ?? "$0"
+            statements.append("This is up \(formattedPercentValue(trend)) versus your last 3-month average of \(averageText).")
         }
 
         let budget = getBudgetForSubcategory(key)
@@ -1083,7 +1126,8 @@ struct AIInsightSection: View {
 
         if let spike = spikingSubcategory, spike.1 >= 25 {
             let spikeName = AppCategories.spendingDisplayNames[spike.0] ?? spike.0
-            statements.append("\(spikeName) shows a sudden spike of \(formattedPercentValue(spike.1)) vs the last 3-month average.")
+            let averageText = getThreeMonthAverage(spike.0).map { formattedCurrency($0) } ?? "$0"
+            statements.append("\(spikeName) shows a sudden spike of \(formattedPercentValue(spike.1)) against its 3-month average of \(averageText).")
         }
 
         return statements.isEmpty
@@ -1115,7 +1159,8 @@ struct AIInsightSection: View {
 
         if let trend = biggestTrend, trend.1 >= 25 {
             let name = AppCategories.spendingDisplayNames[trend.0] ?? trend.0
-            statements.append("Watch \(name): it's up \(formattedPercentValue(trend.1)) against its 3-month average.")
+            let averageText = getThreeMonthAverage(trend.0).map { formattedCurrency($0) } ?? "$0"
+            statements.append("Watch \(name): it's up \(formattedPercentValue(trend.1)) against its 3-month average of \(averageText).")
         }
 
         return statements.isEmpty
