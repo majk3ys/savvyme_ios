@@ -129,8 +129,7 @@ struct UserProfileView: View {
     
     // MARK: - Helper Functions
     var personalInfoSection: some View {
-        Section(header: Text("Personal Information"),
-                footer: Text("Use number input for faster entry. Leave fields blank if you prefer not to share.")) {
+        Section(header: Text("Personal Information")) {
             HStack {
                 Text("Age")
                 Spacer()
@@ -146,8 +145,8 @@ struct UserProfileView: View {
 
             if !age.isEmpty,
                let ageValue = Int(age),
-               !(1...120).contains(ageValue) {
-                Text("Enter a valid age between 1 and 120")
+               !(14...100).contains(ageValue) {
+                Text("Enter a valid age between 14 and 100")
                     .font(.caption)
                     .foregroundColor(.red)
             }
