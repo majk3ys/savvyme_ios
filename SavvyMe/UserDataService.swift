@@ -11,6 +11,8 @@ struct UserProfileData: Codable {
     var adultsCount: String
     var childrenCount: String
     var incomeRange: String
+    var housingStatus: String
+    var mortgageBalanceGroup: String
     var updatedAt: Date
     
     static func fromDefaults() -> UserProfileData {
@@ -23,6 +25,8 @@ struct UserProfileData: Codable {
             adultsCount: defaults.string(forKey: "user_adults_count") ?? "",
             childrenCount: defaults.string(forKey: "user_children_count") ?? "",
             incomeRange: defaults.string(forKey: "user_income_range") ?? "Any",
+            housingStatus: defaults.string(forKey: "user_housing_status") ?? "renter",
+            mortgageBalanceGroup: defaults.string(forKey: "user_mortgage_balance_group") ?? "Any",
             updatedAt: Date(timeIntervalSince1970: defaults.double(forKey: "profile_last_updated"))
         )
     }
@@ -36,6 +40,8 @@ struct UserProfileData: Codable {
         defaults.set(adultsCount, forKey: "user_adults_count")
         defaults.set(childrenCount, forKey: "user_children_count")
         defaults.set(incomeRange, forKey: "user_income_range")
+        defaults.set(housingStatus, forKey: "user_housing_status")
+        defaults.set(mortgageBalanceGroup, forKey: "user_mortgage_balance_group")
         defaults.set(updatedAt.timeIntervalSince1970, forKey: "profile_last_updated")
     }
     
@@ -48,6 +54,8 @@ struct UserProfileData: Codable {
          "user_adults_count",
          "user_children_count",
          "user_income_range",
+         "user_housing_status",
+         "user_mortgage_balance_group",
          "profile_last_updated"].forEach { defaults.removeObject(forKey: $0) }
     }
 }
@@ -100,6 +108,8 @@ final class UserDataService {
             "adultsCount": profile.adultsCount,
             "childrenCount": profile.childrenCount,
             "incomeRange": profile.incomeRange,
+            "housingStatus": profile.housingStatus,
+            "mortgageBalanceGroup": profile.mortgageBalanceGroup,
             "updatedAt": Timestamp(date: profile.updatedAt)
         ]
         try await doc.setData(payload, merge: true)
@@ -120,6 +130,8 @@ final class UserDataService {
                 adultsCount: "",
                 childrenCount: "",
                 incomeRange: "Any",
+                housingStatus: "renter",
+                mortgageBalanceGroup: "Any",
                 updatedAt: Date()
             )
             try await saveProfile(blank)
@@ -142,6 +154,8 @@ final class UserDataService {
             adultsCount: data["adultsCount"] as? String ?? "",
             childrenCount: data["childrenCount"] as? String ?? "",
             incomeRange: data["incomeRange"] as? String ?? "Any",
+            housingStatus: data["housingStatus"] as? String ?? "renter",
+            mortgageBalanceGroup: data["mortgageBalanceGroup"] as? String ?? "Any",
             updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
         )
     }

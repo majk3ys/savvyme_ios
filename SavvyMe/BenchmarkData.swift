@@ -14,6 +14,7 @@ struct BenchmarkData {
     let numPersonsOver15: Int
     let numDependentsUnder15: Int
     let disposableIncome: String
+    let mortgageBalanceGroup: String
     let expenseSubcategory: String
     let expenseCategory: String
     let year: Int
@@ -29,6 +30,8 @@ struct BenchmarkData {
     let p90: Double
     let numHouseholds: Int
     let percentileAvail: Bool
+    let finalBenchmarkValue: Double
+    let finalBenchmarkBasis: String
 }
 
 struct UserBenchmarkComparison {
@@ -65,11 +68,14 @@ class BenchmarkDataManager: ObservableObject {
         
         let lines = content.components(separatedBy: .newlines)
         guard lines.count > 1 else { return }
+
+        let header = parseCSVLine(lines[0]).map { $0.replacingOccurrences(of: "\u{feff}", with: "") }
+        let columnMap = Dictionary(uniqueKeysWithValues: header.enumerated().map { ($0.element, $0.offset) })
         
         // Skip header row
         for line in lines.dropFirst() {
             if !line.isEmpty {
-                if let data = parseBenchmarkLine(line) {
+                if let data = parseBenchmarkLine(line, columnMap: columnMap) {
                     benchmarkData.append(data)
                     benchmarkDataBySubcategory[data.expenseSubcategory, default: []].append(data)
                 }
@@ -79,37 +85,63 @@ class BenchmarkDataManager: ObservableObject {
         print("Loaded \(benchmarkData.count) benchmark records")
     }
     
-    private func parseBenchmarkLine(_ line: String) -> BenchmarkData? {
+    private func parseBenchmarkLine(_ line: String, columnMap: [String: Int]) -> BenchmarkData? {
         let components = parseCSVLine(line)
-        guard components.count >= 12 else { return nil }
-        
-        // Parse numeric values with proper handling of quoted numbers
-        guard let numPersonsOver15 = Int(components[1]),
-              let numDependentsUnder15 = Int(components[2]),
-              let year = Int(components[6]),
-              let weeklyHouseholdSpend = Double(components[7]),
-              let p10 = Double(components[8]),
-              let p20 = Double(components[9]),
-              let p30 = Double(components[10]),
-              let p40 = Double(components[11]),
-              let p50 = Double(components[12]),
-              let p60 = Double(components[13]),
-              let p70 = Double(components[14]),
-              let p80 = Double(components[15]),
-              let p90 = Double(components[16]),
-              let numHouseholds = Int(components[17]) else {
+        guard !components.isEmpty else { return nil }
+
+        func value(for column: String) -> String? {
+            guard let index = columnMap[column], index < components.count else { return nil }
+            return components[index].replacingOccurrences(of: "\"", with: "")
+        }
+
+        func numericValue(for columns: [String]) -> Double? {
+            for column in columns {
+                if let raw = value(for: column), let parsed = Double(raw) {
+                    return parsed
+                }
+            }
             return nil
         }
         
-        let percentileAvail = components[18].uppercased() == "TRUE"
-        
+        // Parse numeric values with proper handling of quoted numbers
+        guard let state = value(for: "STATE"),
+              let numPersonsOver15Text = value(for: "NUM_PERSONS_OVER_15"),
+              let numPersonsOver15 = Int(numPersonsOver15Text),
+              let numDependentsUnder15Text = value(for: "NUM_DEPENDENTS_UNDER_15"),
+              let numDependentsUnder15 = Int(numDependentsUnder15Text),
+              let disposableIncome = value(for: "DISPOSABLE_INCOME"),
+              let expenseSubcategory = value(for: "SavvyMe expense subcategory"),
+              let expenseCategory = value(for: "SavvyMe expense category"),
+              let yearText = value(for: "Year"),
+              let year = Int(yearText),
+              let weeklyHouseholdSpend = numericValue(for: ["final_benchmark_value", "Weekly household spend", "avg_spend"]),
+              let p10 = numericValue(for: ["p10"]),
+              let p20 = numericValue(for: ["p20"]),
+              let p30 = numericValue(for: ["p30"]),
+              let p40 = numericValue(for: ["p40"]),
+              let p50 = numericValue(for: ["p50"]),
+              let p60 = numericValue(for: ["p60"]),
+              let p70 = numericValue(for: ["p70"]),
+              let p80 = numericValue(for: ["p80"]),
+              let p90 = numericValue(for: ["p90"]),
+              let numHouseholdsText = value(for: "num_households"),
+              let numHouseholds = Int(numHouseholdsText) else {
+            return nil
+        }
+
+        let percentileAvail = (value(for: "percentile_avail") ?? "FALSE").uppercased() == "TRUE"
+        let finalBenchmarkValue = numericValue(for: ["final_benchmark_value", "Weekly household spend", "avg_spend"]) ?? weeklyHouseholdSpend
+        let finalBenchmarkBasis = value(for: "final_benchmark_basis") ?? ""
+        let mortgageBalanceGroup = value(for: "MORTGAGE_BALANCE_GROUP") ?? "Any"
+
         return BenchmarkData(
-            state: components[0],
+            state: state,
             numPersonsOver15: numPersonsOver15,
             numDependentsUnder15: numDependentsUnder15,
-            disposableIncome: components[3].replacingOccurrences(of: "\"", with: ""),
-            expenseSubcategory: components[4],
-            expenseCategory: components[5],
+            disposableIncome: disposableIncome,
+            mortgageBalanceGroup: mortgageBalanceGroup,
+            expenseSubcategory: expenseSubcategory,
+            expenseCategory: expenseCategory,
             year: year,
             weeklyHouseholdSpend: weeklyHouseholdSpend,
             p10: p10,
@@ -122,7 +154,9 @@ class BenchmarkDataManager: ObservableObject {
             p80: p80,
             p90: p90,
             numHouseholds: numHouseholds,
-            percentileAvail: percentileAvail
+            percentileAvail: percentileAvail,
+            finalBenchmarkValue: finalBenchmarkValue,
+            finalBenchmarkBasis: finalBenchmarkBasis
         )
     }
     
@@ -161,7 +195,8 @@ class BenchmarkDataManager: ObservableObject {
         state: String,
         adultsCount: Int,
         childrenCount: Int,
-        incomeRange: String
+        incomeRange: String,
+        mortgageBalanceGroup: String
     ) -> Double {
         // Map income range to benchmark format
         let benchmarkIncomeRange = mapIncomeToBenchmarkFormat(incomeRange)
@@ -175,10 +210,10 @@ class BenchmarkDataManager: ObservableObject {
             adultsCount: adultsCount,
             childrenCount: childrenCount,
             incomeRange: benchmarkIncomeRange,
+            mortgageBalanceGroup: mortgageBalanceGroup,
             subcategory: benchmarkSubcategoryName
         ) {
-            // Return the median (p50) as the suggested weekly amount
-            return benchmark.p50
+            return benchmark.finalBenchmarkValue
         }
         
         return 0
@@ -190,43 +225,47 @@ class BenchmarkDataManager: ObservableObject {
         adultsCount: Int,
         childrenCount: Int,
         incomeRange: String,
+        mortgageBalanceGroup: String,
         subcategory: String
     ) -> BenchmarkData? {
-        let candidates = benchmarkDataBySubcategory[subcategory] ?? []
+        let candidates = (benchmarkDataBySubcategory[subcategory] ?? []).filter { $0.percentileAvail }
+        guard !candidates.isEmpty else { return nil }
 
-        // First try exact match
-        if let exact = candidates.first(where: {
-            $0.state == state &&
-            $0.numPersonsOver15 == adultsCount &&
-            $0.numDependentsUnder15 == childrenCount &&
-            $0.disposableIncome == incomeRange
-        }) {
-            return exact
+        func score(_ candidate: BenchmarkData) -> Int {
+            var total = 0
+
+            if candidate.state == state { total += 0 }
+            else if candidate.state == "Any" { total += 3 }
+            else { total += 12 }
+
+            if candidate.disposableIncome == incomeRange { total += 0 }
+            else if candidate.disposableIncome == "Any" { total += 4 }
+            else { total += 10 }
+
+            if candidate.mortgageBalanceGroup == mortgageBalanceGroup { total += 0 }
+            else if candidate.mortgageBalanceGroup == "Any" { total += 2 }
+            else { total += 8 }
+
+            total += abs(candidate.numPersonsOver15 - adultsCount)
+            total += abs(candidate.numDependentsUnder15 - childrenCount)
+
+            return total
         }
 
-        // Try without state constraint
-        if let anyState = candidates.first(where: {
-            $0.numPersonsOver15 == adultsCount &&
-            $0.numDependentsUnder15 == childrenCount &&
-            $0.disposableIncome == incomeRange
-        }) {
-            return anyState
-        }
+        return candidates.min { lhs, rhs in
+            let leftScore = score(lhs)
+            let rightScore = score(rhs)
 
-        // Try with any household composition
-        if let anyHousehold = candidates.first(where: {
-            $0.disposableIncome == incomeRange
-        }) {
-            return anyHousehold
-        }
+            if leftScore != rightScore {
+                return leftScore < rightScore
+            }
 
-        // Set national, single person household as default
-        return candidates.first(where: {
-            $0.state == "Any" &&
-            $0.numPersonsOver15 == 1 &&
-            $0.numDependentsUnder15 == 0 &&
-            $0.disposableIncome == "Any"
-        })
+            if lhs.numHouseholds != rhs.numHouseholds {
+                return lhs.numHouseholds > rhs.numHouseholds
+            }
+
+            return lhs.year > rhs.year
+        }
     }
     
     func getBenchmarkComparisons(
@@ -234,6 +273,7 @@ class BenchmarkDataManager: ObservableObject {
         adultsCount: Int,
         childrenCount: Int,
         incomeRange: String,
+        mortgageBalanceGroup: String,
         userSpending: [String: Double],
         overallFrequency: String
     ) -> [UserBenchmarkComparison] {
@@ -258,6 +298,7 @@ class BenchmarkDataManager: ObservableObject {
                     adultsCount: adultsCount,
                     childrenCount: childrenCount,
                     incomeRange: benchmarkIncomeRange,
+                    mortgageBalanceGroup: mortgageBalanceGroup,
                     subcategory: getBenchmarkSubcategoryName(subcategory)
                 ) {
                     let comparison = createComparison(
@@ -284,7 +325,8 @@ class BenchmarkDataManager: ObservableObject {
         case "130k-159k": return "2,500-2,999"
         case "160k-209k": return "3,000-3,999"
         case "210k above": return ">= 4,000"
-        default: return "1,000-1,499" // Default fallback
+        case "Any": return "Any"
+        default: return "Any"
         }
     }
     
@@ -308,7 +350,7 @@ class BenchmarkDataManager: ObservableObject {
         benchmark: BenchmarkData
     ) -> UserBenchmarkComparison {
         
-        let benchmarkAmount = benchmark.weeklyHouseholdSpend // Use average as benchmark
+        let benchmarkAmount = benchmark.finalBenchmarkValue
         let difference = userWeeklyAmount - benchmarkAmount
         let percentageDifference = benchmarkAmount > 0 ? (difference / benchmarkAmount) * 100 : 0
         let isAboveAverage = userWeeklyAmount > benchmarkAmount
@@ -339,5 +381,24 @@ class BenchmarkDataManager: ObservableObject {
         else if userAmount <= benchmark.p80 { return 80 }
         else if userAmount <= benchmark.p90 { return 90 }
         else { return 95 } // Above 90th percentile
+    }
+
+    var mortgageBalanceGroups: [String] {
+        let preferredOrder = ["Any", "< 200k", "200k-500k", ">500k"]
+        let availableGroups = Set(
+            benchmarkData
+                .map { $0.mortgageBalanceGroup }
+                .filter { !$0.isEmpty && $0.lowercased() != "no mortgage" }
+        )
+
+        let orderedAvailable = preferredOrder.filter { group in
+            group == "Any" || availableGroups.contains(group)
+        }
+
+        let remaining = availableGroups
+            .filter { !preferredOrder.contains($0) }
+            .sorted()
+
+        return orderedAvailable + remaining
     }
 }

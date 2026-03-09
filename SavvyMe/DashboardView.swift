@@ -215,9 +215,19 @@ struct DashboardView: View {
     private func hasBudgetData() -> Bool {
         return filteredItems.contains { $0.budget != nil && ($0.budget ?? 0) > 0 }
     }
+
+    private func canonicalKeys(for key: String) -> [String] {
+        if key == "phoneInternet" {
+            return ["phoneInternet", "phone", "internet"]
+        }
+        return [key]
+    }
     
     private func getBudgetForSubcategory(_ subcategory: String) -> Double {
-        guard let budget = filteredItems.first(where: { $0.name == subcategory })?.budget else { return 0 }
+        let budget = canonicalKeys(for: subcategory)
+            .compactMap { key in filteredItems.first(where: { $0.name == key })?.budget }
+            .reduce(0, +)
+        guard budget > 0 else { return 0 }
         // Convert from Monthly (stored) to current frequency
         let fromMultiplier = frequencyMultiplier(from: "Monthly")
         let toMultiplier = frequencyMultiplier(from: overallFrequency)
@@ -245,7 +255,6 @@ struct DashboardView: View {
         let adultsCount = UserDefaults.standard.string(forKey: "user_adults_count") ?? ""
         let childrenCount = UserDefaults.standard.string(forKey: "user_children_count") ?? ""
         let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
-        
         return state != "Any" && !adultsCount.isEmpty && !childrenCount.isEmpty && incomeRange != "Any"
     }
     
@@ -256,6 +265,10 @@ struct DashboardView: View {
         let adultsCount = Int(UserDefaults.standard.string(forKey: "user_adults_count") ?? "1") ?? 1
         let childrenCount = Int(UserDefaults.standard.string(forKey: "user_children_count") ?? "0") ?? 0
         let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
+        let housingStatus = UserDefaults.standard.string(forKey: "user_housing_status") ?? "renter"
+        let mortgageBalanceGroup = housingStatus == "owner_with_mortgage"
+            ? (UserDefaults.standard.string(forKey: "user_mortgage_balance_group") ?? "Any")
+            : "Any"
         
         // Create spending dictionary from current items
         var userSpending: [String: Double] = [:]
@@ -268,6 +281,7 @@ struct DashboardView: View {
             adultsCount: adultsCount,
             childrenCount: childrenCount,
             incomeRange: incomeRange,
+            mortgageBalanceGroup: mortgageBalanceGroup,
             userSpending: userSpending,
             overallFrequency: self.overallFrequency // This now uses the current frequency
         )
@@ -435,7 +449,13 @@ struct DashboardView: View {
     }
 
     func adjustedValue(for key: String) -> Double {
-        adjustedAmountsByName[key] ?? 0
+        if key == "phoneInternet" {
+            if let combined = adjustedAmountsByName["phoneInternet"] {
+                return combined
+            }
+            return (adjustedAmountsByName["phone"] ?? 0) + (adjustedAmountsByName["internet"] ?? 0)
+        }
+        return adjustedAmountsByName[key] ?? 0
     }
 
     func totalIncome() -> Double {
@@ -1364,7 +1384,9 @@ private struct CategoryRow: View {
     private var categoryBudgetTotal: Double {
         let categorySubcategories = getCategorySubcategories(for: category)
         return categorySubcategories.reduce(0) { total, subcategory in
-            let budget = filteredItems.first(where: { $0.name == subcategory })?.budget ?? 0
+            let budget = (subcategory == "phoneInternet"
+                ? ["phoneInternet", "phone", "internet"].compactMap { key in filteredItems.first(where: { $0.name == key })?.budget }.reduce(0, +)
+                : (filteredItems.first(where: { $0.name == subcategory })?.budget ?? 0))
             // Convert from Monthly (stored) to current frequency
             return total + (budget * frequencyMultiplier(from: "Monthly") / frequencyMultiplier(from: overallFrequency))
         }
@@ -1713,7 +1735,10 @@ private struct SubcategoryRow: View {
     }
     
     private var budgetAmount: Double {
-        guard let budget = filteredItems.first(where: { $0.name == subcategoryKey })?.budget else { return 0 }
+        let budget = (subcategoryKey == "phoneInternet"
+            ? ["phoneInternet", "phone", "internet"].compactMap { key in filteredItems.first(where: { $0.name == key })?.budget }.reduce(0, +)
+            : (filteredItems.first(where: { $0.name == subcategoryKey })?.budget ?? 0))
+        guard budget > 0 else { return 0 }
         // Convert from Monthly (stored) to current frequency
         return budget * frequencyMultiplier(from: "Monthly") / frequencyMultiplier(from: overallFrequency)
     }

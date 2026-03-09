@@ -252,10 +252,22 @@ struct SpendingInputView: View {
     }
     
     private func getCurrentValue(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = filteredItems.first(where: { $0.name == "phoneInternet" })?.amount
+            if let combined { return combined }
+            return (filteredItems.first(where: { $0.name == "phone" })?.amount ?? 0)
+                + (filteredItems.first(where: { $0.name == "internet" })?.amount ?? 0)
+        }
         return filteredItems.first(where: { $0.name == name })?.amount ?? 0
     }
     
     private func getCurrentBudget(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = filteredItems.first(where: { $0.name == "phoneInternet" })?.budget
+            if let combined { return combined }
+            return (filteredItems.first(where: { $0.name == "phone" })?.budget ?? 0)
+                + (filteredItems.first(where: { $0.name == "internet" })?.budget ?? 0)
+        }
         return filteredItems.first(where: { $0.name == name })?.budget ?? 0
     }
     
@@ -274,16 +286,15 @@ struct SpendingInputView: View {
     }
     
     private func convertToOverallFrequency(for name: String) -> Double {
-        guard let item = filteredItems.first(where: { $0.name == name }) else { return 0 }
-        let base = item.amount
+        let base = getCurrentValue(for: name)
         let fromMultiplier = frequencyMultiplier(from: "Monthly")
         let toMultiplier = frequencyMultiplier(from: overallFrequency)
         return base * fromMultiplier / toMultiplier
     }
     
     private func convertBudgetToOverallFrequency(for name: String) -> Double {
-        guard let item = filteredItems.first(where: { $0.name == name }),
-              let budget = item.budget else { return 0 }
+        let budget = getCurrentBudget(for: name)
+        guard budget > 0 else { return 0 }
         let fromMultiplier = frequencyMultiplier(from: "Monthly")
         let toMultiplier = frequencyMultiplier(from: overallFrequency)
         return budget * fromMultiplier / toMultiplier
@@ -461,6 +472,12 @@ private struct CategoryCard: View {
     }
     
     private func getCurrentValue(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = allItems.first(where: { $0.name == "phoneInternet" })?.amount
+            if let combined { return combined }
+            return (allItems.first(where: { $0.name == "phone" })?.amount ?? 0)
+                + (allItems.first(where: { $0.name == "internet" })?.amount ?? 0)
+        }
         return allItems.first(where: { $0.name == name })?.amount ?? 0
     }
     
@@ -477,8 +494,7 @@ private struct CategoryCard: View {
     }
     
     private func convertToOverallFrequency(for name: String) -> Double {
-        guard let item = allItems.first(where: { $0.name == name }) else { return 0 }
-        let base = item.amount
+        let base = getCurrentValue(for: name)
         // Since all items are now stored as Monthly, convert from Monthly to the overallFrequency
         let fromMultiplier = frequencyMultiplier(from: "Monthly")
         let toMultiplier = frequencyMultiplier(from: overallFrequency)
@@ -525,7 +541,6 @@ struct CategoryDetailView: View {
         let adultsCount = UserDefaults.standard.string(forKey: "user_adults_count") ?? ""
         let childrenCount = UserDefaults.standard.string(forKey: "user_children_count") ?? ""
         let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
-        
         return state != "Any" && !adultsCount.isEmpty && !childrenCount.isEmpty && incomeRange != "Any"
     }
     
@@ -536,6 +551,10 @@ struct CategoryDetailView: View {
         let adultsCount = Int(UserDefaults.standard.string(forKey: "user_adults_count") ?? "1") ?? 1
         let childrenCount = Int(UserDefaults.standard.string(forKey: "user_children_count") ?? "0") ?? 0
         let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
+        let housingStatus = UserDefaults.standard.string(forKey: "user_housing_status") ?? "renter"
+        let mortgageBalanceGroup = housingStatus == "owner_with_mortgage"
+            ? (UserDefaults.standard.string(forKey: "user_mortgage_balance_group") ?? "Any")
+            : "Any"
         
         // Get benchmark data (this returns weekly amounts)
         let weeklyBenchmark = benchmarkManager.getBenchmarkAmount(
@@ -543,7 +562,8 @@ struct CategoryDetailView: View {
             state: userState,
             adultsCount: adultsCount,
             childrenCount: childrenCount,
-            incomeRange: incomeRange
+            incomeRange: incomeRange,
+            mortgageBalanceGroup: mortgageBalanceGroup
         )
         
         // Convert from weekly to monthly (since we store budgets as monthly)
@@ -713,10 +733,22 @@ struct CategoryDetailView: View {
     }
     
     private func getCurrentValue(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = allItems.first(where: { $0.name == "phoneInternet" })?.amount
+            if let combined { return combined }
+            return (allItems.first(where: { $0.name == "phone" })?.amount ?? 0)
+                + (allItems.first(where: { $0.name == "internet" })?.amount ?? 0)
+        }
         return allItems.first(where: { $0.name == name })?.amount ?? 0
     }
     
     private func getCurrentBudget(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = allItems.first(where: { $0.name == "phoneInternet" })?.budget
+            if let combined { return combined }
+            return (allItems.first(where: { $0.name == "phone" })?.budget ?? 0)
+                + (allItems.first(where: { $0.name == "internet" })?.budget ?? 0)
+        }
         return allItems.first(where: { $0.name == name })?.budget ?? 0
     }
     
@@ -733,14 +765,13 @@ struct CategoryDetailView: View {
     }
     
     private func convertToOverallFrequency(for name: String) -> Double {
-        guard let item = allItems.first(where: { $0.name == name }) else { return 0 }
-        let base = item.amount
+        let base = getCurrentValue(for: name)
         return base
     }
     
     private func convertBudgetToOverallFrequency(for name: String) -> Double {
-        guard let item = allItems.first(where: { $0.name == name }),
-        let budget = item.budget else { return 0 }
+        let budget = getCurrentBudget(for: name)
+        guard budget > 0 else { return 0 }
         return budget
     }
 }
@@ -1058,7 +1089,6 @@ private struct SearchResultsSection: View {
         let adultsCount = UserDefaults.standard.string(forKey: "user_adults_count") ?? ""
         let childrenCount = UserDefaults.standard.string(forKey: "user_children_count") ?? ""
         let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
-        
         return state != "Any" && !adultsCount.isEmpty && !childrenCount.isEmpty && incomeRange != "Any"
     }
     
@@ -1069,6 +1099,10 @@ private struct SearchResultsSection: View {
         let adultsCount = Int(UserDefaults.standard.string(forKey: "user_adults_count") ?? "1") ?? 1
         let childrenCount = Int(UserDefaults.standard.string(forKey: "user_children_count") ?? "0") ?? 0
         let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
+        let housingStatus = UserDefaults.standard.string(forKey: "user_housing_status") ?? "renter"
+        let mortgageBalanceGroup = housingStatus == "owner_with_mortgage"
+            ? (UserDefaults.standard.string(forKey: "user_mortgage_balance_group") ?? "Any")
+            : "Any"
         
         // Get benchmark data (this returns weekly amounts)
         let weeklyBenchmark = benchmarkManager.getBenchmarkAmount(
@@ -1076,7 +1110,8 @@ private struct SearchResultsSection: View {
             state: userState,
             adultsCount: adultsCount,
             childrenCount: childrenCount,
-            incomeRange: incomeRange
+            incomeRange: incomeRange,
+            mortgageBalanceGroup: mortgageBalanceGroup
         )
         
         // Convert from weekly to monthly (since we store budgets as monthly)
@@ -1143,10 +1178,22 @@ private struct SearchResultsSection: View {
     }
     
     private func getCurrentValue(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = allItems.first(where: { $0.name == "phoneInternet" })?.amount
+            if let combined { return combined }
+            return (allItems.first(where: { $0.name == "phone" })?.amount ?? 0)
+                + (allItems.first(where: { $0.name == "internet" })?.amount ?? 0)
+        }
         return allItems.first(where: { $0.name == name })?.amount ?? 0
     }
     
     private func getCurrentBudget(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = allItems.first(where: { $0.name == "phoneInternet" })?.budget
+            if let combined { return combined }
+            return (allItems.first(where: { $0.name == "phone" })?.budget ?? 0)
+                + (allItems.first(where: { $0.name == "internet" })?.budget ?? 0)
+        }
         return allItems.first(where: { $0.name == name })?.budget ?? 0
     }
 }
