@@ -13,6 +13,8 @@ struct UserProfileView: View {
     @State private var adultsCount: String = ""
     @State private var childrenCount: String = ""
     @State private var selectedIncomeRange = "Any"
+    @State private var housingStatus = "renter"
+    @State private var selectedMortgageBalanceGroup = "Any"
     
     // Form validation and UI state
     @State private var showingLogoutAlert = false
@@ -50,12 +52,24 @@ struct UserProfileView: View {
         "210k above"
     ]
     
+
+    let housingStatusOptions: [(value: String, label: String)] = [
+        ("renter", "Renter"),
+        ("owner_with_mortgage", "Owner with mortgage"),
+        ("owner_no_mortgage", "Owner with no mortgage")
+    ]
+    
+    var mortgageBalanceGroups: [String] {
+        BenchmarkDataManager.shared.mortgageBalanceGroups
+    }
+
     var body: some View {
         NavigationView {
             Form {
                 personalInfoSection
                 householdInfoSection
                 incomeSection
+                housingSection
                 
                 Section {
                     Button(action: {
@@ -258,6 +272,43 @@ struct UserProfileView: View {
         }
     }
 
+    var housingSection: some View {
+        Section(header: Text("Housing")) {
+            Menu {
+                Picker("Housing status", selection: $housingStatus) {
+                    ForEach(housingStatusOptions, id: \.value) { option in
+                        Text(option.label).tag(option.value)
+                    }
+                }
+            } label: {
+                HStack {
+                    Text("Housing status")
+                    Spacer()
+                    Text(housingStatusOptions.first(where: { $0.value == housingStatus })?.label ?? "Renter")
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(.nav)
+            }
+
+            if housingStatus == "owner_with_mortgage" {
+                Menu {
+                    Picker("Outstanding mortgage balance", selection: $selectedMortgageBalanceGroup) {
+                        ForEach(mortgageBalanceGroups, id: \.self) { group in
+                            Text(group).tag(group)
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Text("Outstanding mortgage balance")
+                        Spacer()
+                        Text(selectedMortgageBalanceGroup)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundColor(.nav)
+                }
+            }
+        }
+    }
 
     private func validateForm() -> Void {
         let ageValid = age.isEmpty || (Int(age) != nil && Int(age)! > 0 && Int(age)! <= 120)
@@ -281,6 +332,8 @@ struct UserProfileView: View {
             adultsCount: adultsCount,
             childrenCount: childrenCount,
             incomeRange: selectedIncomeRange,
+            housingStatus: housingStatus,
+            mortgageBalanceGroup: housingStatus == "owner_with_mortgage" ? selectedMortgageBalanceGroup : "Any",
             updatedAt: Date()
         )
 
@@ -327,6 +380,8 @@ struct UserProfileView: View {
         adultsCount = profile.adultsCount
         childrenCount = profile.childrenCount
         selectedIncomeRange = profile.incomeRange
+        housingStatus = profile.housingStatus
+        selectedMortgageBalanceGroup = profile.mortgageBalanceGroup
     }
     
     private func clearAllData() {
@@ -361,6 +416,8 @@ struct UserProfileView: View {
         adultsCount = ""
         childrenCount = ""
         selectedIncomeRange = "Any"
+        housingStatus = "renter"
+        selectedMortgageBalanceGroup = "Any"
         
         validateForm()
 

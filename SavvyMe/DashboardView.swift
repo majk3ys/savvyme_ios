@@ -245,7 +245,6 @@ struct DashboardView: View {
         let adultsCount = UserDefaults.standard.string(forKey: "user_adults_count") ?? ""
         let childrenCount = UserDefaults.standard.string(forKey: "user_children_count") ?? ""
         let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
-        
         return state != "Any" && !adultsCount.isEmpty && !childrenCount.isEmpty && incomeRange != "Any"
     }
     
@@ -256,6 +255,10 @@ struct DashboardView: View {
         let adultsCount = Int(UserDefaults.standard.string(forKey: "user_adults_count") ?? "1") ?? 1
         let childrenCount = Int(UserDefaults.standard.string(forKey: "user_children_count") ?? "0") ?? 0
         let incomeRange = UserDefaults.standard.string(forKey: "user_income_range") ?? "Any"
+        let housingStatus = UserDefaults.standard.string(forKey: "user_housing_status") ?? "renter"
+        let mortgageBalanceGroup = housingStatus == "owner_with_mortgage"
+            ? (UserDefaults.standard.string(forKey: "user_mortgage_balance_group") ?? "Any")
+            : "Any"
         
         // Create spending dictionary from current items
         var userSpending: [String: Double] = [:]
@@ -268,6 +271,7 @@ struct DashboardView: View {
             adultsCount: adultsCount,
             childrenCount: childrenCount,
             incomeRange: incomeRange,
+            mortgageBalanceGroup: mortgageBalanceGroup,
             userSpending: userSpending,
             overallFrequency: self.overallFrequency // This now uses the current frequency
         )
