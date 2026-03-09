@@ -384,7 +384,21 @@ class BenchmarkDataManager: ObservableObject {
     }
 
     var mortgageBalanceGroups: [String] {
-        let groups = Set(benchmarkData.map { $0.mortgageBalanceGroup }.filter { !$0.isEmpty && $0 != "Any" })
-        return ["Any"] + groups.sorted()
+        let preferredOrder = ["Any", "< 200k", "200k-500k", ">500k"]
+        let availableGroups = Set(
+            benchmarkData
+                .map { $0.mortgageBalanceGroup }
+                .filter { !$0.isEmpty && $0.lowercased() != "no mortgage" }
+        )
+
+        let orderedAvailable = preferredOrder.filter { group in
+            group == "Any" || availableGroups.contains(group)
+        }
+
+        let remaining = availableGroups
+            .filter { !preferredOrder.contains($0) }
+            .sorted()
+
+        return orderedAvailable + remaining
     }
 }
