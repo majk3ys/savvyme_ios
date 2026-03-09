@@ -252,10 +252,22 @@ struct SpendingInputView: View {
     }
     
     private func getCurrentValue(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = filteredItems.first(where: { $0.name == "phoneInternet" })?.amount
+            if let combined { return combined }
+            return (filteredItems.first(where: { $0.name == "phone" })?.amount ?? 0)
+                + (filteredItems.first(where: { $0.name == "internet" })?.amount ?? 0)
+        }
         return filteredItems.first(where: { $0.name == name })?.amount ?? 0
     }
     
     private func getCurrentBudget(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = filteredItems.first(where: { $0.name == "phoneInternet" })?.budget
+            if let combined { return combined }
+            return (filteredItems.first(where: { $0.name == "phone" })?.budget ?? 0)
+                + (filteredItems.first(where: { $0.name == "internet" })?.budget ?? 0)
+        }
         return filteredItems.first(where: { $0.name == name })?.budget ?? 0
     }
     
@@ -274,16 +286,15 @@ struct SpendingInputView: View {
     }
     
     private func convertToOverallFrequency(for name: String) -> Double {
-        guard let item = filteredItems.first(where: { $0.name == name }) else { return 0 }
-        let base = item.amount
+        let base = getCurrentValue(for: name)
         let fromMultiplier = frequencyMultiplier(from: "Monthly")
         let toMultiplier = frequencyMultiplier(from: overallFrequency)
         return base * fromMultiplier / toMultiplier
     }
     
     private func convertBudgetToOverallFrequency(for name: String) -> Double {
-        guard let item = filteredItems.first(where: { $0.name == name }),
-              let budget = item.budget else { return 0 }
+        let budget = getCurrentBudget(for: name)
+        guard budget > 0 else { return 0 }
         let fromMultiplier = frequencyMultiplier(from: "Monthly")
         let toMultiplier = frequencyMultiplier(from: overallFrequency)
         return budget * fromMultiplier / toMultiplier
@@ -461,6 +472,12 @@ private struct CategoryCard: View {
     }
     
     private func getCurrentValue(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = allItems.first(where: { $0.name == "phoneInternet" })?.amount
+            if let combined { return combined }
+            return (allItems.first(where: { $0.name == "phone" })?.amount ?? 0)
+                + (allItems.first(where: { $0.name == "internet" })?.amount ?? 0)
+        }
         return allItems.first(where: { $0.name == name })?.amount ?? 0
     }
     
@@ -477,8 +494,7 @@ private struct CategoryCard: View {
     }
     
     private func convertToOverallFrequency(for name: String) -> Double {
-        guard let item = allItems.first(where: { $0.name == name }) else { return 0 }
-        let base = item.amount
+        let base = getCurrentValue(for: name)
         // Since all items are now stored as Monthly, convert from Monthly to the overallFrequency
         let fromMultiplier = frequencyMultiplier(from: "Monthly")
         let toMultiplier = frequencyMultiplier(from: overallFrequency)
@@ -717,10 +733,22 @@ struct CategoryDetailView: View {
     }
     
     private func getCurrentValue(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = allItems.first(where: { $0.name == "phoneInternet" })?.amount
+            if let combined { return combined }
+            return (allItems.first(where: { $0.name == "phone" })?.amount ?? 0)
+                + (allItems.first(where: { $0.name == "internet" })?.amount ?? 0)
+        }
         return allItems.first(where: { $0.name == name })?.amount ?? 0
     }
     
     private func getCurrentBudget(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = allItems.first(where: { $0.name == "phoneInternet" })?.budget
+            if let combined { return combined }
+            return (allItems.first(where: { $0.name == "phone" })?.budget ?? 0)
+                + (allItems.first(where: { $0.name == "internet" })?.budget ?? 0)
+        }
         return allItems.first(where: { $0.name == name })?.budget ?? 0
     }
     
@@ -737,14 +765,13 @@ struct CategoryDetailView: View {
     }
     
     private func convertToOverallFrequency(for name: String) -> Double {
-        guard let item = allItems.first(where: { $0.name == name }) else { return 0 }
-        let base = item.amount
+        let base = getCurrentValue(for: name)
         return base
     }
     
     private func convertBudgetToOverallFrequency(for name: String) -> Double {
-        guard let item = allItems.first(where: { $0.name == name }),
-        let budget = item.budget else { return 0 }
+        let budget = getCurrentBudget(for: name)
+        guard budget > 0 else { return 0 }
         return budget
     }
 }
@@ -1151,10 +1178,22 @@ private struct SearchResultsSection: View {
     }
     
     private func getCurrentValue(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = allItems.first(where: { $0.name == "phoneInternet" })?.amount
+            if let combined { return combined }
+            return (allItems.first(where: { $0.name == "phone" })?.amount ?? 0)
+                + (allItems.first(where: { $0.name == "internet" })?.amount ?? 0)
+        }
         return allItems.first(where: { $0.name == name })?.amount ?? 0
     }
     
     private func getCurrentBudget(for name: String) -> Double {
+        if name == "phoneInternet" {
+            let combined = allItems.first(where: { $0.name == "phoneInternet" })?.budget
+            if let combined { return combined }
+            return (allItems.first(where: { $0.name == "phone" })?.budget ?? 0)
+                + (allItems.first(where: { $0.name == "internet" })?.budget ?? 0)
+        }
         return allItems.first(where: { $0.name == name })?.budget ?? 0
     }
 }
