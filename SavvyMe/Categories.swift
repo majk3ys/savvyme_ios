@@ -3,7 +3,7 @@ import Foundation
 
 struct AppCategories {
     static let all: [String: [String]] = [
-        "Home": ["mortgage", "rent", "homeInsurance", "electricity", "gas", "water", "phone", "internet", "furniture", "otherHome"],
+        "Home": ["mortgage", "rent", "homeInsurance", "electricity", "gas", "water", "phoneInternet", "furniture", "otherHome"],
         "Daily living": ["groceries", "restaurants", "medical", "healthInsurance", "education", "childCare", "petCare", "otherDailyLiving"],
         "Transport": ["fuel", "servicing", "regoInsurance", "publicTransport", "otherTransport"],
         "Entertainment & personal": ["streaming", "electronics", "concerts", "gymClubs", "clothing", "salonBeauty", "holidays", "otherPersonal"],
@@ -29,8 +29,7 @@ struct AppCategories {
         "electricity": "Electricity",
         "gas": "Gas",
         "water": "Water",
-        "phone": "Phone",
-        "internet": "Internet",
+        "phoneInternet": "Phone & internet",
         "furniture": "Furniture",
         "otherHome": "Other home",
         
