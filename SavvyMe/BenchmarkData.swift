@@ -228,45 +228,44 @@ class BenchmarkDataManager: ObservableObject {
         mortgageBalanceGroup: String,
         subcategory: String
     ) -> BenchmarkData? {
-        let candidates = benchmarkDataBySubcategory[subcategory] ?? []
+        let candidates = (benchmarkDataBySubcategory[subcategory] ?? []).filter { $0.percentileAvail }
+        guard !candidates.isEmpty else { return nil }
 
-        // First try exact match
-        if let exact = candidates.first(where: {
-            $0.state == state &&
-            $0.numPersonsOver15 == adultsCount &&
-            $0.numDependentsUnder15 == childrenCount &&
-            $0.disposableIncome == incomeRange &&
-            ($0.mortgageBalanceGroup == mortgageBalanceGroup || $0.mortgageBalanceGroup == "Any")
-        }) {
-            return exact
+        func score(_ candidate: BenchmarkData) -> Int {
+            var total = 0
+
+            if candidate.state == state { total += 0 }
+            else if candidate.state == "Any" { total += 3 }
+            else { total += 12 }
+
+            if candidate.disposableIncome == incomeRange { total += 0 }
+            else if candidate.disposableIncome == "Any" { total += 4 }
+            else { total += 10 }
+
+            if candidate.mortgageBalanceGroup == mortgageBalanceGroup { total += 0 }
+            else if candidate.mortgageBalanceGroup == "Any" { total += 2 }
+            else { total += 8 }
+
+            total += abs(candidate.numPersonsOver15 - adultsCount)
+            total += abs(candidate.numDependentsUnder15 - childrenCount)
+
+            return total
         }
 
-        // Try without state constraint
-        if let anyState = candidates.first(where: {
-            $0.numPersonsOver15 == adultsCount &&
-            $0.numDependentsUnder15 == childrenCount &&
-            $0.disposableIncome == incomeRange &&
-            ($0.mortgageBalanceGroup == mortgageBalanceGroup || $0.mortgageBalanceGroup == "Any")
-        }) {
-            return anyState
-        }
+        return candidates.min { lhs, rhs in
+            let leftScore = score(lhs)
+            let rightScore = score(rhs)
 
-        // Try with any household composition
-        if let anyHousehold = candidates.first(where: {
-            $0.disposableIncome == incomeRange &&
-            ($0.mortgageBalanceGroup == mortgageBalanceGroup || $0.mortgageBalanceGroup == "Any")
-        }) {
-            return anyHousehold
-        }
+            if leftScore != rightScore {
+                return leftScore < rightScore
+            }
 
-        // Set national, single person household as default
-        return candidates.first(where: {
-            $0.state == "Any" &&
-            $0.numPersonsOver15 == 1 &&
-            $0.numDependentsUnder15 == 0 &&
-            $0.disposableIncome == "Any" &&
-            ($0.mortgageBalanceGroup == mortgageBalanceGroup || $0.mortgageBalanceGroup == "Any")
-        })
+            if lhs.numHouseholds != rhs.numHouseholds {
+                return lhs.numHouseholds > rhs.numHouseholds
+            }
+
+            return lhs.year > rhs.year
+        }
     }
     
     func getBenchmarkComparisons(
@@ -326,7 +325,8 @@ class BenchmarkDataManager: ObservableObject {
         case "130k-159k": return "2,500-2,999"
         case "160k-209k": return "3,000-3,999"
         case "210k above": return ">= 4,000"
-        default: return "1,000-1,499" // Default fallback
+        case "Any": return "Any"
+        default: return "Any"
         }
     }
     
