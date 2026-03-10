@@ -269,7 +269,9 @@ struct DashboardView: View {
         let mortgageBalanceGroup = housingStatus == "owner_with_mortgage"
             ? (UserDefaults.standard.string(forKey: "user_mortgage_balance_group") ?? "Any")
             : "Any"
-        
+        let mortgageLoanAmount = Double(UserDefaults.standard.string(forKey: "user_mortgage_loan_amount") ?? "")
+        let mortgageLoanYears = Int(UserDefaults.standard.string(forKey: "user_mortgage_loan_years") ?? "")
+
         // Create spending dictionary from current items
         var userSpending: [String: Double] = [:]
         for category in AppCategories.spending.values.flatMap({ $0 }) {
@@ -282,6 +284,9 @@ struct DashboardView: View {
             childrenCount: childrenCount,
             incomeRange: incomeRange,
             mortgageBalanceGroup: mortgageBalanceGroup,
+            housingStatus: housingStatus,
+            mortgageLoanAmount: mortgageLoanAmount,
+            mortgageLoanYears: mortgageLoanYears,
             userSpending: userSpending,
             overallFrequency: self.overallFrequency // This now uses the current frequency
         )

@@ -13,6 +13,8 @@ struct UserProfileData: Codable {
     var incomeRange: String
     var housingStatus: String
     var mortgageBalanceGroup: String
+    var mortgageLoanAmount: String
+    var mortgageLoanYears: String
     var updatedAt: Date
     
     static func fromDefaults() -> UserProfileData {
@@ -27,6 +29,8 @@ struct UserProfileData: Codable {
             incomeRange: defaults.string(forKey: "user_income_range") ?? "Any",
             housingStatus: defaults.string(forKey: "user_housing_status") ?? "renter",
             mortgageBalanceGroup: defaults.string(forKey: "user_mortgage_balance_group") ?? "Any",
+            mortgageLoanAmount: defaults.string(forKey: "user_mortgage_loan_amount") ?? "",
+            mortgageLoanYears: defaults.string(forKey: "user_mortgage_loan_years") ?? "",
             updatedAt: Date(timeIntervalSince1970: defaults.double(forKey: "profile_last_updated"))
         )
     }
@@ -42,6 +46,8 @@ struct UserProfileData: Codable {
         defaults.set(incomeRange, forKey: "user_income_range")
         defaults.set(housingStatus, forKey: "user_housing_status")
         defaults.set(mortgageBalanceGroup, forKey: "user_mortgage_balance_group")
+        defaults.set(mortgageLoanAmount, forKey: "user_mortgage_loan_amount")
+        defaults.set(mortgageLoanYears, forKey: "user_mortgage_loan_years")
         defaults.set(updatedAt.timeIntervalSince1970, forKey: "profile_last_updated")
     }
     
@@ -56,6 +62,8 @@ struct UserProfileData: Codable {
          "user_income_range",
          "user_housing_status",
          "user_mortgage_balance_group",
+         "user_mortgage_loan_amount",
+         "user_mortgage_loan_years",
          "profile_last_updated"].forEach { defaults.removeObject(forKey: $0) }
     }
 }
@@ -110,6 +118,8 @@ final class UserDataService {
             "incomeRange": profile.incomeRange,
             "housingStatus": profile.housingStatus,
             "mortgageBalanceGroup": profile.mortgageBalanceGroup,
+            "mortgageLoanAmount": profile.mortgageLoanAmount,
+            "mortgageLoanYears": profile.mortgageLoanYears,
             "updatedAt": Timestamp(date: profile.updatedAt)
         ]
         try await doc.setData(payload, merge: true)
@@ -132,6 +142,8 @@ final class UserDataService {
                 incomeRange: "Any",
                 housingStatus: "renter",
                 mortgageBalanceGroup: "Any",
+                mortgageLoanAmount: "",
+                mortgageLoanYears: "",
                 updatedAt: Date()
             )
             try await saveProfile(blank)
@@ -156,6 +168,8 @@ final class UserDataService {
             incomeRange: data["incomeRange"] as? String ?? "Any",
             housingStatus: data["housingStatus"] as? String ?? "renter",
             mortgageBalanceGroup: data["mortgageBalanceGroup"] as? String ?? "Any",
+            mortgageLoanAmount: data["mortgageLoanAmount"] as? String ?? "",
+            mortgageLoanYears: data["mortgageLoanYears"] as? String ?? "",
             updatedAt: (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
         )
     }

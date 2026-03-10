@@ -196,14 +196,25 @@ class BenchmarkDataManager: ObservableObject {
         adultsCount: Int,
         childrenCount: Int,
         incomeRange: String,
-        mortgageBalanceGroup: String
+        mortgageBalanceGroup: String,
+        housingStatus: String,
+        mortgageLoanAmount: Double?,
+        mortgageLoanYears: Int?
     ) -> Double {
+        if subcategory == "mortgage",
+           housingStatus == "owner_with_mortgage",
+           let loanAmount = mortgageLoanAmount,
+           let loanYears = mortgageLoanYears,
+           let weeklyRepayment = MortgageRateManager.shared.weeklyPrincipalAndInterestPayment(loanAmount: loanAmount, loanYears: loanYears) {
+            return weeklyRepayment
+        }
+
         // Map income range to benchmark format
         let benchmarkIncomeRange = mapIncomeToBenchmarkFormat(incomeRange)
-        
+
         // Get the display name for the subcategory to match with benchmark data
         let benchmarkSubcategoryName = AppCategories.spendingDisplayNames[subcategory] ?? subcategory
-        
+
         // Find matching benchmark
         if let benchmark = findMatchingBenchmark(
             state: state,
@@ -274,6 +285,9 @@ class BenchmarkDataManager: ObservableObject {
         childrenCount: Int,
         incomeRange: String,
         mortgageBalanceGroup: String,
+        housingStatus: String,
+        mortgageLoanAmount: Double?,
+        mortgageLoanYears: Int?,
         userSpending: [String: Double],
         overallFrequency: String
     ) -> [UserBenchmarkComparison] {
@@ -293,6 +307,28 @@ class BenchmarkDataManager: ObservableObject {
                 // Convert user amount to weekly for comparison
                 let userWeeklyAmount = convertToWeekly(userAmount, frequency: overallFrequency)
                 
+                if subcategory == "mortgage",
+                   housingStatus == "owner_with_mortgage",
+                   let loanAmount = mortgageLoanAmount,
+                   let loanYears = mortgageLoanYears,
+                   let weeklyRepayment = MortgageRateManager.shared.weeklyPrincipalAndInterestPayment(loanAmount: loanAmount, loanYears: loanYears) {
+                    let difference = userWeeklyAmount - weeklyRepayment
+                    let percentageDifference = weeklyRepayment > 0 ? (difference / weeklyRepayment) * 100 : 0
+                    comparisons.append(
+                        UserBenchmarkComparison(
+                            category: userCategory,
+                            subcategory: subcategory,
+                            userAmount: userWeeklyAmount,
+                            benchmarkAmount: weeklyRepayment,
+                            percentile: nil,
+                            isAboveAverage: userWeeklyAmount > weeklyRepayment,
+                            difference: difference,
+                            percentageDifference: percentageDifference
+                        )
+                    )
+                    continue
+                }
+
                 if let benchmark = findMatchingBenchmark(
                     state: userState,
                     adultsCount: adultsCount,

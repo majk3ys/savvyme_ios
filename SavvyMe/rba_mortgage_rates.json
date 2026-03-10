@@ -1,0 +1,7 @@
+{
+  "as_at_month": "2026-01",
+  "owner_occupier_new_pi_rate_pct": 5.48,
+  "owner_occupier_new_all_rate_pct": 5.51,
+  "source_table": "RBA F6",
+  "source_url": "https://www.rba.gov.au/statistics/tables/xls/f06hist.xlsx"
+}

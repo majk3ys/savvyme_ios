@@ -555,7 +555,9 @@ struct CategoryDetailView: View {
         let mortgageBalanceGroup = housingStatus == "owner_with_mortgage"
             ? (UserDefaults.standard.string(forKey: "user_mortgage_balance_group") ?? "Any")
             : "Any"
-        
+        let mortgageLoanAmount = Double(UserDefaults.standard.string(forKey: "user_mortgage_loan_amount") ?? "")
+        let mortgageLoanYears = Int(UserDefaults.standard.string(forKey: "user_mortgage_loan_years") ?? "")
+
         // Get benchmark data (this returns weekly amounts)
         let weeklyBenchmark = benchmarkManager.getBenchmarkAmount(
             for: subcategory,
@@ -563,7 +565,10 @@ struct CategoryDetailView: View {
             adultsCount: adultsCount,
             childrenCount: childrenCount,
             incomeRange: incomeRange,
-            mortgageBalanceGroup: mortgageBalanceGroup
+            mortgageBalanceGroup: mortgageBalanceGroup,
+            housingStatus: housingStatus,
+            mortgageLoanAmount: mortgageLoanAmount,
+            mortgageLoanYears: mortgageLoanYears
         )
         
         // Convert from weekly to monthly (since we store budgets as monthly)
@@ -1103,7 +1108,9 @@ private struct SearchResultsSection: View {
         let mortgageBalanceGroup = housingStatus == "owner_with_mortgage"
             ? (UserDefaults.standard.string(forKey: "user_mortgage_balance_group") ?? "Any")
             : "Any"
-        
+        let mortgageLoanAmount = Double(UserDefaults.standard.string(forKey: "user_mortgage_loan_amount") ?? "")
+        let mortgageLoanYears = Int(UserDefaults.standard.string(forKey: "user_mortgage_loan_years") ?? "")
+
         // Get benchmark data (this returns weekly amounts)
         let weeklyBenchmark = benchmarkManager.getBenchmarkAmount(
             for: subcategory,
@@ -1111,7 +1118,10 @@ private struct SearchResultsSection: View {
             adultsCount: adultsCount,
             childrenCount: childrenCount,
             incomeRange: incomeRange,
-            mortgageBalanceGroup: mortgageBalanceGroup
+            mortgageBalanceGroup: mortgageBalanceGroup,
+            housingStatus: housingStatus,
+            mortgageLoanAmount: mortgageLoanAmount,
+            mortgageLoanYears: mortgageLoanYears
         )
         
         // Convert from weekly to monthly (since we store budgets as monthly)

@@ -15,6 +15,8 @@ struct UserProfileView: View {
     @State private var selectedIncomeRange = "Any"
     @State private var housingStatus = "renter"
     @State private var selectedMortgageBalanceGroup = "Any"
+    @State private var mortgageLoanAmount: String = ""
+    @State private var mortgageLoanYears: String = ""
     
     // Form validation and UI state
     @State private var showingLogoutAlert = false
@@ -289,6 +291,14 @@ struct UserProfileView: View {
                 }
                 .foregroundColor(.nav)
             }
+            .onChange(of: housingStatus) { newValue in
+                if newValue != "owner_with_mortgage" {
+                    selectedMortgageBalanceGroup = "Any"
+                    mortgageLoanAmount = ""
+                    mortgageLoanYears = ""
+                }
+                validateForm()
+            }
 
             if housingStatus == "owner_with_mortgage" {
                 Menu {
@@ -306,6 +316,32 @@ struct UserProfileView: View {
                     }
                     .foregroundColor(.nav)
                 }
+
+                HStack {
+                    Text("Loan amount")
+                    Spacer()
+                    TextField("e.g. 650000", text: $mortgageLoanAmount)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 140)
+                        .onChange(of: mortgageLoanAmount) { newValue in
+                            mortgageLoanAmount = numericPrefix(from: newValue, maxLength: 9)
+                            validateForm()
+                        }
+                }
+
+                HStack {
+                    Text("Loan term (years)")
+                    Spacer()
+                    TextField("e.g. 30", text: $mortgageLoanYears)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 100)
+                        .onChange(of: mortgageLoanYears) { newValue in
+                            mortgageLoanYears = numericPrefix(from: newValue, maxLength: 2)
+                            validateForm()
+                        }
+                }
             }
         }
     }
@@ -315,8 +351,10 @@ struct UserProfileView: View {
         let postcodeValid = postcode.isEmpty || (postcode.count == 4 && Int(postcode) != nil)
         let adultsValid = adultsCount.isEmpty || (Int(adultsCount) != nil && Int(adultsCount)! > 0)
         let childrenValid = childrenCount.isEmpty || (Int(childrenCount) != nil && Int(childrenCount)! >= 0)
-        
-        isFormValid = ageValid && postcodeValid && adultsValid && childrenValid
+        let mortgageLoanAmountValid = housingStatus != "owner_with_mortgage" || ((Double(mortgageLoanAmount) ?? 0) > 0)
+        let mortgageLoanYearsValid = housingStatus != "owner_with_mortgage" || ((Int(mortgageLoanYears) ?? 0) > 0)
+
+        isFormValid = ageValid && postcodeValid && adultsValid && childrenValid && mortgageLoanAmountValid && mortgageLoanYearsValid
     }
 
     private func numericPrefix(from input: String, maxLength: Int) -> String {
@@ -334,6 +372,8 @@ struct UserProfileView: View {
             incomeRange: selectedIncomeRange,
             housingStatus: housingStatus,
             mortgageBalanceGroup: housingStatus == "owner_with_mortgage" ? selectedMortgageBalanceGroup : "Any",
+            mortgageLoanAmount: housingStatus == "owner_with_mortgage" ? mortgageLoanAmount : "",
+            mortgageLoanYears: housingStatus == "owner_with_mortgage" ? mortgageLoanYears : "",
             updatedAt: Date()
         )
 
@@ -382,6 +422,9 @@ struct UserProfileView: View {
         selectedIncomeRange = profile.incomeRange
         housingStatus = profile.housingStatus
         selectedMortgageBalanceGroup = profile.mortgageBalanceGroup
+        mortgageLoanAmount = profile.mortgageLoanAmount
+        mortgageLoanYears = profile.mortgageLoanYears
+        validateForm()
     }
     
     private func clearAllData() {
@@ -418,7 +461,9 @@ struct UserProfileView: View {
         selectedIncomeRange = "Any"
         housingStatus = "renter"
         selectedMortgageBalanceGroup = "Any"
-        
+        mortgageLoanAmount = ""
+        mortgageLoanYears = ""
+
         validateForm()
 
         Task {
