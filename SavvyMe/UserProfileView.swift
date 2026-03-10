@@ -14,7 +14,6 @@ struct UserProfileView: View {
     @State private var childrenCount: String = ""
     @State private var selectedIncomeRange = "Any"
     @State private var housingStatus = "renter"
-    @State private var selectedMortgageBalanceGroup = "Any"
     @State private var mortgageLoanAmount: String = ""
     @State private var mortgageLoanYears: String = ""
     
@@ -61,9 +60,6 @@ struct UserProfileView: View {
         ("owner_no_mortgage", "Owner with no mortgage")
     ]
     
-    var mortgageBalanceGroups: [String] {
-        BenchmarkDataManager.shared.mortgageBalanceGroups
-    }
 
     var body: some View {
         NavigationView {
@@ -293,7 +289,6 @@ struct UserProfileView: View {
             }
             .onChange(of: housingStatus) { newValue in
                 if newValue != "owner_with_mortgage" {
-                    selectedMortgageBalanceGroup = "Any"
                     mortgageLoanAmount = ""
                     mortgageLoanYears = ""
                 }
@@ -301,22 +296,6 @@ struct UserProfileView: View {
             }
 
             if housingStatus == "owner_with_mortgage" {
-                Menu {
-                    Picker("Outstanding mortgage balance", selection: $selectedMortgageBalanceGroup) {
-                        ForEach(mortgageBalanceGroups, id: \.self) { group in
-                            Text(group).tag(group)
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Text("Outstanding mortgage balance")
-                        Spacer()
-                        Text(selectedMortgageBalanceGroup)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundColor(.nav)
-                }
-
                 HStack {
                     Text("Loan amount")
                     Spacer()
@@ -371,7 +350,7 @@ struct UserProfileView: View {
             childrenCount: childrenCount,
             incomeRange: selectedIncomeRange,
             housingStatus: housingStatus,
-            mortgageBalanceGroup: housingStatus == "owner_with_mortgage" ? selectedMortgageBalanceGroup : "Any",
+            mortgageBalanceGroup: "Any",
             mortgageLoanAmount: housingStatus == "owner_with_mortgage" ? mortgageLoanAmount : "",
             mortgageLoanYears: housingStatus == "owner_with_mortgage" ? mortgageLoanYears : "",
             updatedAt: Date()
@@ -421,7 +400,6 @@ struct UserProfileView: View {
         childrenCount = profile.childrenCount
         selectedIncomeRange = profile.incomeRange
         housingStatus = profile.housingStatus
-        selectedMortgageBalanceGroup = profile.mortgageBalanceGroup
         mortgageLoanAmount = profile.mortgageLoanAmount
         mortgageLoanYears = profile.mortgageLoanYears
         validateForm()
@@ -460,7 +438,6 @@ struct UserProfileView: View {
         childrenCount = ""
         selectedIncomeRange = "Any"
         housingStatus = "renter"
-        selectedMortgageBalanceGroup = "Any"
         mortgageLoanAmount = ""
         mortgageLoanYears = ""
 
